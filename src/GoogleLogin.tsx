@@ -53,8 +53,9 @@ async function signInWithGoogle() {
 
  const redirectTo =
   window.location.origin + import.meta.env.BASE_URL
+  console.log('OAuth redirectTo:', redirectTo)
 
-  console.log('Google login redirect:', redirectTo)
+
 
   const { error } = await client.auth.signInWithOAuth({
     provider: 'google',
