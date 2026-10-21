@@ -41,25 +41,28 @@ export default function GoogleLogin() {
     return () => subscription.unsubscribe()
   }, [])
 
-  async function signInWithGoogle() {
-    setError('')
+ 
+async function signInWithGoogle() {
+  setError('')
 
-    const client = supabase
-    if (!client) {
-      setError('Supabase-accountaanmelding is niet ingesteld.')
-      return
-    }
-
-    const redirectTo =
-      window.location.origin + import.meta.env.BASE_URL
-
-    const { error } = await client.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo },
-    })
-
-    if (error) setError(error.message)
+  const client = supabase
+  if (!client) {
+    setError('Supabase-accountaanmelding is niet ingesteld.')
+    return
   }
+
+  const redirectTo =
+    window.location.origin + import.meta.env.BASE_URL
+
+  console.log('Google login redirect:', redirectTo)
+
+  const { error } = await client.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo },
+  })
+
+  if (error) setError(error.message)
+}
 
   async function signOut() {
     setError('')
