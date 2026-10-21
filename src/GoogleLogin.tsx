@@ -51,9 +51,8 @@ async function signInWithGoogle() {
     return
   }
 
-  const redirectTo = window.location.hostname === 'localhost'
-    ? 'http://localhost:5173/StrongJan/'
-    : 'https://strongjan.github.io/StrongJan/'
+ const redirectTo =
+  window.location.origin + import.meta.env.BASE_URL
 
   console.log('Google login redirect:', redirectTo)
 
