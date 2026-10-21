@@ -19,21 +19,24 @@ export default function GoogleLogin() {
       setLoading(false)
     })
 
-    void client.auth.getSession().then(({ data, error: sessionError }) => {
-      if (sessionError) {
-        setError(sessionError.message)
-      } else {
-        setUser(data.session?.user ?? null)
-      }
-      setLoading(false)
-    }).catch((sessionError: unknown) => {
-      setError(
-        sessionError instanceof Error
-          ? sessionError.message
-          : 'Sessie kon niet worden geladen.',
-      )
-      setLoading(false)
-    })
+    void client.auth
+      .getSession()
+      .then(({ data, error: sessionError }) => {
+        if (sessionError) {
+          setError(sessionError.message)
+        } else {
+          setUser(data.session?.user ?? null)
+        }
+        setLoading(false)
+      })
+      .catch((sessionError: unknown) => {
+        setError(
+          sessionError instanceof Error
+            ? sessionError.message
+            : 'Sessie kon niet worden geladen.',
+        )
+        setLoading(false)
+      })
 
     return () => subscription.unsubscribe()
   }, [])
@@ -47,12 +50,12 @@ export default function GoogleLogin() {
       return
     }
 
+    const redirectTo =
+      window.location.origin + import.meta.env.BASE_URL
+
     const { error } = await client.auth.signInWithOAuth({
       provider: 'google',
-      options: {
-        redirectTo:
-          window.location.origin + import.meta.env.BASE_URL,
-      },
+      options: { redirectTo },
     })
 
     if (error) setError(error.message)
@@ -70,6 +73,14 @@ export default function GoogleLogin() {
     const { error } = await client.auth.signOut()
 
     if (error) setError(error.message)
+  }
+
+  if (!supabaseConfigured || !supabase) {
+    return (
+      <section className="google-login">
+        <p>Supabase-accountaanmelding is niet ingesteld.</p>
+      </section>
+    )
   }
 
   if (loading) {
