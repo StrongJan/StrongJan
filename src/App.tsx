@@ -13,7 +13,6 @@ import { createPortal } from 'react-dom'
 import type { User } from '@supabase/supabase-js'
 import { supabase, supabaseConfigured } from './supabase'
 import './App.css'
-
 type SetEntry = {
   reps: string
   weight: string
@@ -739,7 +738,6 @@ function ProfileSettings({
           <h3>Profiel en account</h3>
           <p>Bekijk je profiel of meld je aan om een account te maken.</p>
         </div>
-
         {!supabaseConfigured ? (
           <p className="auth-feedback auth-feedback-error" role="alert">
             Accountaanmelding is nog niet ingesteld. Configureer de Supabase-gegevens
@@ -3236,7 +3234,7 @@ function deleteSet(exerciseId: number, setIndex: number) {
         {activeWorkout ? 'Ga verder met trainen' : 'Start je training'}
         <span>→</span>
       </button>
-      <div className="hero-decoration">FITNESS<span>AI</span></div>
+      <div className="hero-decoration" aria-hidden="true">🏋</div>
     </div>
 
     <GymAttendanceDashboard workouts={workouts} />
