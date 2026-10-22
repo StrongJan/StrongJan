@@ -42,8 +42,9 @@ export default function GoogleLogin() {
   }, [])
 
  
+
 async function signInWithGoogle() {
-    console.log('Google-loginfunctie aangeroepen')
+  console.log('Google-loginfunctie aangeroepen')
   setError('')
 
   const client = supabase
@@ -52,13 +53,8 @@ async function signInWithGoogle() {
     return
   }
 
- const redirectTo = new URL(
-  import.meta.env.BASE_URL,
-  window.location.origin,
-).toString()
-console.log('BASE_URL:', import.meta.env.BASE_URL)
-console.log('redirectTo:', redirectTo)
-  
+  const redirectTo = 'https://strongjan.github.io/StrongJan/'
+  console.log('redirectTo:', redirectTo)
 
   const { error } = await client.auth.signInWithOAuth({
     provider: 'google',
@@ -67,6 +63,7 @@ console.log('redirectTo:', redirectTo)
 
   if (error) setError(error.message)
 }
+
 
   async function signOut() {
     setError('')
