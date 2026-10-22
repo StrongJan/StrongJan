@@ -48,6 +48,13 @@ type MuscleRecovery = {
   percentage: number
 }
 
+type TrainingLoadPeriod = 'week' | 'month' | 'year' | 'all'
+
+type MuscleTrainingLoad = {
+  muscleGroup: string
+  effectiveSets: number
+}
+
 type WorkoutPreset = {
   id: number
   name: string
@@ -458,39 +465,45 @@ function GymAttendanceDashboard({ workouts }: { workouts: Workout[] }) {
 function OneRepMaxCalculator() {
   const [weight, setWeight] = useState('')
   const [reps, setReps] = useState('')
+  const [rpe, setRpe] = useState('10')
   const enteredWeight = Number(weight)
   const enteredReps = Number(reps)
+  const enteredRpe = Number(rpe)
+  const estimatedRepsToFailure = enteredReps + (10 - enteredRpe)
   const isValidInput =
     Number.isFinite(enteredWeight) &&
     enteredWeight > 0 &&
     Number.isInteger(enteredReps) &&
     enteredReps >= 1 &&
-    enteredReps <= 36
+    Number.isFinite(enteredRpe) &&
+    enteredRpe >= 1 &&
+    enteredRpe <= 10 &&
+    estimatedRepsToFailure <= 36
 
-  const estimates = isValidInput
-    ? [
-        {
-          name: 'Epley',
-          value:
-            enteredReps === 1
-              ? enteredWeight
-              : enteredWeight * (1 + enteredReps / 30),
-        },
-        {
-          name: 'Brzycki',
-          value:
-            enteredReps === 1
-              ? enteredWeight
-              : (enteredWeight * 36) / (37 - enteredReps),
-        },
-        {
-          name: 'Lombardi',
-          value:
-            enteredReps === 1
-              ? enteredWeight
-              : enteredWeight * enteredReps ** 0.1,
-        },
-      ]
+  const repMaxEstimates = isValidInput
+    ? Array.from({ length: 8 }, (_, index) => {
+        const targetReps = index + 1
+        const epleyOneRepMax =
+          enteredWeight * (1 + estimatedRepsToFailure / 30)
+        const lombardiOneRepMax =
+          enteredWeight * estimatedRepsToFailure ** 0.1
+        const epleyEstimate =
+          targetReps === 1
+            ? epleyOneRepMax
+            : epleyOneRepMax / (1 + targetReps / 30)
+        const lombardiEstimate =
+          targetReps === 1
+            ? lombardiOneRepMax
+            : lombardiOneRepMax / targetReps ** 0.1
+        const estimatedWeight = (epleyEstimate + lombardiEstimate) / 2
+        const oneRepMax = (epleyOneRepMax + lombardiOneRepMax) / 2
+
+        return {
+          reps: targetReps,
+          weight: estimatedWeight,
+          percentage: targetReps === 1 ? 100 : (estimatedWeight / oneRepMax) * 100,
+        }
+      })
     : []
 
   return (
@@ -526,29 +539,63 @@ function OneRepMaxCalculator() {
             placeholder="Bijv. 8"
           />
         </label>
+        <label>
+          RPE (1-10)
+          <input
+            type="number"
+            min="1"
+            max="10"
+            step="0.5"
+            value={rpe}
+            onChange={(event) => setRpe(event.target.value)}
+          />
+        </label>
       </div>
 
-      {estimates.length > 0 ? (
-        <div className="one-rep-max-results" aria-live="polite">
-          {estimates.map((estimate) => (
-            <article className="one-rep-max-result" key={estimate.name}>
-              <span>{estimate.name}</span>
-              <strong>
-                {estimate.value.toLocaleString('nl-NL', {
-                  maximumFractionDigits: 1,
-                })}{' '}
-                kg
-              </strong>
-            </article>
-          ))}
+      {repMaxEstimates.length > 0 ? (
+        <div className="rep-max-section" aria-live="polite">
+          <h3>Geschatte rep maxes</h3>
+          <div className="rep-max-results">
+            {repMaxEstimates.map((estimate) => (
+              <div className="rep-max-result" key={estimate.reps}>
+                <div className="rep-max-result-heading">
+                  <strong>{estimate.reps}RM</strong>
+                  <span>
+                    {estimate.weight.toLocaleString('nl-NL', {
+                      maximumFractionDigits: 1,
+                    })}{' '}
+                    kg
+                  </span>
+                  <span>{Math.round(estimate.percentage)}%</span>
+                </div>
+                <div
+                  className="rep-max-bar"
+                  role="progressbar"
+                  aria-label={`${estimate.reps}RM is ${Math.round(estimate.percentage)} procent van je 1RM`}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(estimate.percentage)}
+                >
+                  <span style={{ width: `${estimate.percentage}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="one-rep-max-note">
+            Gemiddelde van de Epley- en Lombardi-formule. RPE is meegerekend.
+          </p>
         </div>
       ) : (
         <p className="one-rep-max-hint">
-          Vul een gewicht en 1 tot en met 36 herhalingen in.
+          {estimatedRepsToFailure > 36
+            ? 'Het aantal herhalingen inclusief RPE-correctie mag niet hoger zijn dan 36.'
+            : 'Vul een gewicht, 1 tot en met 36 herhalingen en een RPE van 1 tot 10 in.'}
         </p>
       )}
       <p className="one-rep-max-note">
-        Dit zijn schattingen; de uitkomst kan per formule verschillen.
+        RPE wordt omgerekend naar herhalingen over: RPE 10 is maximaal, RPE 9
+        betekent ongeveer 1 herhaling over. Dit zijn schattingen; de uitkomst
+        kan per formule verschillen.
       </p>
     </section>
   )
@@ -1052,8 +1099,6 @@ const exerciseMuscleGroupOptions = [
   'Buik',
   'Onderarmen',
   'Trapezius',
-  'Benen',
-  'Overig',
 ]
 
 function defineExercise(
@@ -1064,12 +1109,38 @@ function defineExercise(
   return { name, muscleGroup, secondaryMuscleGroups }
 }
 
+function normalizeExerciseOption(exercise: ExerciseOption): ExerciseOption {
+  const legacyPrimaryGroup = exercise.muscleGroup === 'Benen'
+  const legacySecondaryGroup = exercise.secondaryMuscleGroups?.includes('Benen')
+  if (!legacyPrimaryGroup && !legacySecondaryGroup) return exercise
+
+  const muscleGroup = legacyPrimaryGroup
+    ? 'Quadriceps'
+    : exercise.muscleGroup
+  const secondaryMuscleGroups = new Set(
+    exercise.secondaryMuscleGroups?.filter((group) => group !== 'Benen') ?? [],
+  )
+
+  if (legacyPrimaryGroup || legacySecondaryGroup) {
+    secondaryMuscleGroups.add('Quadriceps')
+    secondaryMuscleGroups.add('Hamstrings')
+    secondaryMuscleGroups.add('Bilspieren')
+  }
+  secondaryMuscleGroups.delete(muscleGroup)
+
+  return {
+    ...exercise,
+    muscleGroup,
+    secondaryMuscleGroups: [...secondaryMuscleGroups],
+  }
+}
+
 const exerciseLibrary: ExerciseOption[] = [
   defineExercise('Arnold Press', 'Schouders', ['Triceps']),
   defineExercise('Barbell Row', 'Rug', ['Biceps', 'Schouders']),
   defineExercise('Barbell Bench Press', 'Borst', ['Schouders', 'Triceps']),
   defineExercise('Bicep Curl', 'Biceps', ['Onderarmen']),
-  defineExercise('Bulgarian Split Squat', 'Benen', ['Bilspieren', 'Hamstrings']),
+  defineExercise('Bulgarian Split Squat', 'Quadriceps', ['Bilspieren', 'Hamstrings']),
   defineExercise('Cable Crossover', 'Borst', ['Schouders']),
   defineExercise('Cable Fly', 'Borst', ['Schouders']),
   defineExercise('Cable Curl', 'Biceps', ['Onderarmen']),
@@ -1127,7 +1198,8 @@ function getWorkoutMuscleGroupWorkload(
 
   workout.exercises.forEach((exercise) => {
     const exerciseOption = optionsByName.get(exercise.name.toLocaleLowerCase())
-    const primaryMuscleGroup = exerciseOption?.muscleGroup ?? 'Overig'
+    if (!exerciseOption) return
+    const primaryMuscleGroup = exerciseOption.muscleGroup
     const secondaryMuscleGroups = exerciseOption?.secondaryMuscleGroups ?? []
 
     const addWorkload = (muscleGroup: string, role: 'primary' | 'secondary') => {
@@ -1172,7 +1244,11 @@ function getMuscleRecovery(
   now: number,
 ): MuscleRecovery[] {
   const normalizeMuscleGroup = (muscleGroup: string) =>
-    muscleGroup === 'Trapezius' ? 'Rug' : muscleGroup
+    muscleGroup === 'Trapezius'
+      ? 'Rug'
+      : muscleGroup === 'Overig'
+        ? ''
+        : muscleGroup
   const recoveryHours = 48
   const muscleGroups = new Set(
     exerciseMuscleGroupOptions.map(normalizeMuscleGroup),
@@ -1186,9 +1262,13 @@ function getMuscleRecovery(
   )
 
   exerciseOptions.forEach((exercise) => {
-    muscleGroups.add(normalizeMuscleGroup(exercise.muscleGroup))
+    const primaryGroup = normalizeMuscleGroup(exercise.muscleGroup)
+    if (primaryGroup) muscleGroups.add(primaryGroup)
     exercise.secondaryMuscleGroups?.forEach((group) =>
-      muscleGroups.add(normalizeMuscleGroup(group)),
+      {
+        const normalizedGroup = normalizeMuscleGroup(group)
+        if (normalizedGroup) muscleGroups.add(normalizedGroup)
+      },
     )
   })
 
@@ -1207,9 +1287,13 @@ function getMuscleRecovery(
 
     workout.exercises.forEach((exercise) => {
       const option = optionsByName.get(exercise.name.toLocaleLowerCase())
-      const primaryGroup = normalizeMuscleGroup(option?.muscleGroup ?? 'Overig')
+      if (!option) return
+      const primaryGroup = normalizeMuscleGroup(option.muscleGroup)
+      if (!primaryGroup) return
       const secondaryGroups = new Set(
-        (option?.secondaryMuscleGroups ?? []).map(normalizeMuscleGroup),
+        (option.secondaryMuscleGroups ?? [])
+          .map(normalizeMuscleGroup)
+          .filter(Boolean),
       )
 
       exercise.sets.forEach((set) => {
@@ -1272,6 +1356,267 @@ function getRecoveryColor(percentage: number) {
   const clampedPercentage = Math.min(100, Math.max(60, percentage))
   const hue = ((clampedPercentage - 60) / 40) * 120
   return `hsl(${hue} 85% 42%)`
+}
+
+function getMuscleTrainingLoad(
+  workouts: Workout[],
+  exerciseOptions: ExerciseOption[],
+  period: TrainingLoadPeriod,
+  now: number,
+): MuscleTrainingLoad[] {
+  const today = new Date(now)
+  today.setHours(0, 0, 0, 0)
+  let periodStart: Date | null = null
+
+  if (period === 'week') {
+    periodStart = getWeekStart(today)
+  } else if (period === 'month') {
+    periodStart = new Date(today.getFullYear(), today.getMonth(), 1)
+  } else if (period === 'year') {
+    periodStart = new Date(today.getFullYear(), 0, 1)
+  }
+
+  const optionsByName = new Map(
+    exerciseOptions.map((exercise) => [
+      exercise.name.toLocaleLowerCase(),
+      exercise,
+    ]),
+  )
+  const loadByMuscle = new Map<string, number>()
+  const normalizeMuscleGroup = (muscleGroup: string) =>
+    muscleGroup === 'Trapezius'
+      ? 'Rug'
+      : muscleGroup === 'Overig'
+        ? ''
+        : muscleGroup
+
+  workouts.forEach((workout) => {
+    const workoutDate = parseWorkoutDate(workout.date)
+    if (
+      !workoutDate ||
+      (periodStart && dateKey(workoutDate) < dateKey(periodStart)) ||
+      dateKey(workoutDate) > dateKey(today)
+    ) {
+      return
+    }
+
+    workout.exercises.forEach((exercise) => {
+      const option = optionsByName.get(exercise.name.toLocaleLowerCase())
+      if (!option) return
+      const primaryGroup = normalizeMuscleGroup(option.muscleGroup)
+      if (!primaryGroup) return
+
+      const workSetCount = exercise.sets.filter((set) => {
+        const reps = Number(set.reps)
+        return Number.isFinite(reps) && reps > 0
+      }).length
+      if (!workSetCount) return
+
+      loadByMuscle.set(
+        primaryGroup,
+        (loadByMuscle.get(primaryGroup) ?? 0) + workSetCount,
+      )
+      new Set(option.secondaryMuscleGroups ?? []).forEach((secondaryGroup) => {
+        const normalizedGroup = normalizeMuscleGroup(secondaryGroup)
+        if (!normalizedGroup || normalizedGroup === primaryGroup) return
+        loadByMuscle.set(
+          normalizedGroup,
+          (loadByMuscle.get(normalizedGroup) ?? 0) + workSetCount * 0.5,
+        )
+      })
+    })
+  })
+
+  return [...loadByMuscle]
+    .map(([muscleGroup, effectiveSets]) => ({ muscleGroup, effectiveSets }))
+    .sort((left, right) => right.effectiveSets - left.effectiveSets)
+}
+
+function MuscleLoadVisualizations({
+  muscleLoads,
+  maxLoad,
+}: {
+  muscleLoads: MuscleTrainingLoad[]
+  maxLoad: number
+}) {
+  const muscleLoadByGroup = new Map(
+    muscleLoads.map(({ muscleGroup, effectiveSets }) => [
+      muscleGroup,
+      effectiveSets,
+    ]),
+  )
+  const radarCenter = { x: 180, y: 160 }
+  const radarRadius = 104
+  const radarPoint = (index: number, scale: number) => {
+    const angle =
+      -Math.PI / 2 + (2 * Math.PI * index) / muscleLoads.length
+    return {
+      x: radarCenter.x + Math.cos(angle) * radarRadius * scale,
+      y: radarCenter.y + Math.sin(angle) * radarRadius * scale,
+      labelX: radarCenter.x + Math.cos(angle) * (radarRadius + 30),
+      labelY: radarCenter.y + Math.sin(angle) * (radarRadius + 30),
+    }
+  }
+  const radarPolygon = (scale: number) =>
+    muscleLoads
+      .map((_, index) => {
+        const point = radarPoint(index, scale)
+        return `${point.x},${point.y}`
+      })
+      .join(' ')
+  const loadRatio = (muscleGroup: string) =>
+    Math.min(1, (muscleLoadByGroup.get(muscleGroup) ?? 0) / maxLoad)
+  const muscleOpacity = (muscleGroup: string) =>
+    (0.12 + loadRatio(muscleGroup) * 0.78).toFixed(2)
+
+  return (
+    <div className="muscle-load-visuals">
+      <div className="muscle-radar-wrap">
+        <svg
+          className="muscle-radar"
+          viewBox="0 0 360 320"
+          role="img"
+          aria-label={`Radar diagram van trainingsbelasting per spiergroep. ${muscleLoads
+            .map(
+              ({ muscleGroup, effectiveSets }) =>
+                `${muscleGroup}: ${effectiveSets} effectieve sets`,
+            )
+            .join('; ')}`}
+        >
+          {[0.25, 0.5, 0.75, 1].map((scale) => (
+            <polygon
+              key={scale}
+              points={radarPolygon(scale)}
+              className="muscle-radar-grid"
+            />
+          ))}
+          {muscleLoads.map(({ muscleGroup }, index) => {
+            const point = radarPoint(index, 1)
+            return (
+              <g key={muscleGroup}>
+                <line
+                  x1={radarCenter.x}
+                  y1={radarCenter.y}
+                  x2={point.x}
+                  y2={point.y}
+                  className="muscle-radar-axis"
+                />
+                <text
+                  x={point.labelX}
+                  y={point.labelY}
+                  className="muscle-radar-label"
+                  textAnchor={
+                    point.labelX < radarCenter.x - 12
+                      ? 'end'
+                      : point.labelX > radarCenter.x + 12
+                        ? 'start'
+                        : 'middle'
+                  }
+                  dominantBaseline="middle"
+                >
+                  {muscleGroup}
+                  <title>
+                    {muscleGroup}: {muscleLoadByGroup.get(muscleGroup) ?? 0}{' '}
+                    effectieve sets
+                  </title>
+                </text>
+              </g>
+            )
+          })}
+          <polygon
+            points={muscleLoads
+              .map(({ muscleGroup }, index) => {
+                const point = radarPoint(
+                  index,
+                  loadRatio(muscleGroup),
+                )
+                return `${point.x},${point.y}`
+              })
+              .join(' ')}
+            className="muscle-radar-data"
+          />
+          {muscleLoads.map(({ muscleGroup }, index) => {
+            const point = radarPoint(index, loadRatio(muscleGroup))
+            return (
+              <circle
+                key={muscleGroup}
+                cx={point.x}
+                cy={point.y}
+                r="3"
+                className="muscle-radar-point"
+              />
+            )
+          })}
+        </svg>
+      </div>
+
+      <svg
+        className="muscle-body-map"
+        viewBox="0 0 420 370"
+        role="img"
+        aria-label="Voor- en achteraanzicht van de belangrijkste spiergroepen. Rood geeft de relatieve trainingsbelasting aan."
+      >
+        <defs>
+          <linearGradient id="body-base" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0" stopColor="#f6f3f0" />
+            <stop offset=".5" stopColor="#d9d4d0" />
+            <stop offset="1" stopColor="#c7c2be" />
+          </linearGradient>
+          <linearGradient id="muscle-shade" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0" stopColor="#ff7777" />
+            <stop offset="1" stopColor="#b51221" />
+          </linearGradient>
+          <filter id="body-shadow" x="-30%" y="-15%" width="160%" height="145%">
+            <feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="#526158" floodOpacity=".16" />
+          </filter>
+        </defs>
+        <text x="105" y="18" className="muscle-body-caption">VOORAANZICHT</text>
+        <text x="315" y="18" className="muscle-body-caption">ACHTERAANZICHT</text>
+        <g filter="url(#body-shadow)">
+          <g className="muscle-body-silhouette">
+            <ellipse cx="105" cy="48" rx="17" ry="21" />
+            <path d="M98 67h14l5 15-12 8-12-8z" />
+            <path d="M89 76q-14-5-23 4L48 91q-6 4-8 12l-12 40q-2 7 4 9t9-5l16-31 11-22 16-5z" />
+            <path d="M121 76q14-5 23 4l18 11q6 4 8 12l12 40q2 7-4 9t-9-5l-16-31-11-22-16-5z" />
+            <path d="M90 77q8-7 15-7t15 7q17-2 24 8l-6 36-4 42q-1 14-12 20l-2 13H90l-2-13q-11-6-12-20l-4-42-6-36q7-10 24-8z" />
+            <path d="M90 193q15 5 30 0l5 19-4 65q-1 11-5 22l-3 29q-1 6-7 6t-6-7l2-32-4-34-4 34 2 32q0 7-6 7t-7-6l-3-29q-4-11-5-22l-4-65z" />
+            <ellipse cx="315" cy="48" rx="17" ry="21" />
+            <path d="M308 67h14l5 15-12 8-12-8z" />
+            <path d="M299 76q-16-6-29 1l-21 12q-7 4-9 13l-11 41q-2 7 4 9t9-5l15-30 12-20 16-5z" />
+            <path d="M331 76q16-6 29 1l21 12q7 4 9 13l11 41q2 7-4 9t-9-5l-15-30-12-20-16-5z" />
+            <path d="M299 76q16-7 32 0 15-3 24 8l-7 40-3 39q-1 17-15 24l-2 13h-27l-2-13q-14-7-15-24l-3-39-7-40q9-11 24-8z" />
+            <path d="M300 200q15-5 30 0l5 18-6 63q-1 11-5 22l-3 29q-1 6-7 6t-6-7l2-32-4-34-4 34 2 32q0 7-6 7t-7-6l-3-29q-4-11-5-22l-4-63z" />
+          </g>
+          <g className="muscle-body-regions">
+            <path d="M76 91q12-12 27-5l-1 25q-12 4-24-5z" fillOpacity={muscleOpacity('Borst')} />
+            <path d="M134 91q-12-12-27-5l1 25q12 4 24-5z" fillOpacity={muscleOpacity('Borst')} />
+            <path d="M75 80q-12-7-21 5l7 13q11-2 17-11z" fillOpacity={muscleOpacity('Schouders')} />
+            <path d="M135 80q12-7 21 5l-7 13q-11-2-17-11z" fillOpacity={muscleOpacity('Schouders')} />
+            <path d="M58 98q-7 15-12 36l9 5 15-37z" fillOpacity={muscleOpacity('Biceps')} />
+            <path d="M152 98q7 15 12 36l-9 5-15-37z" fillOpacity={muscleOpacity('Biceps')} />
+            <path d="M33 133q-5 11-8 22l10 4 10-18zM177 133q5 11 8 22l-10 4-10-18z" fillOpacity={muscleOpacity('Onderarmen')} />
+            <path d="M88 117q8 5 17 1v16H88zM107 118q7 4 15-1v17h-15zM88 138h17v16H89zM107 138h15v16h-15zM89 158h16v17q-9 3-16-4zM107 158h15v13q-7 7-15 4z" fillOpacity={muscleOpacity('Buik')} />
+            <path d="M77 180q11-4 19 3l-3 47q-2 15-12 26l-6-13-4-43z" fillOpacity={muscleOpacity('Quadriceps')} />
+            <path d="M133 180q-11-4-19 3l3 47q2 15 12 26l6-13 4-43z" fillOpacity={muscleOpacity('Quadriceps')} />
+            <path d="M82 263q8 0 13 5l-4 33-10 1-4-16zM128 263q-8 0-13 5l4 33 10 1 4-16z" fillOpacity={muscleOpacity('Kuiten')} />
+            <path d="M286 84q13-13 29-8l-10 29-14 5zM344 84q-13-13-29-8l10 29 14 5z" fillOpacity={muscleOpacity('Schouders')} />
+            <path d="M295 79q20-12 39 0l-6 21-13 12-14-12z" fillOpacity={muscleOpacity('Rug')} />
+            <path d="M283 105q-9 5-12 20l-7 29 18 14 18-11v-45zM347 105q9 5 12 20l7 29-18 14-18-11v-45z" fillOpacity={muscleOpacity('Rug')} />
+            <path d="M276 91q-15-8-22 8l12 20 14-9zM354 91q15-8 22 8l-12 20-14-9z" fillOpacity={muscleOpacity('Triceps')} />
+            <path d="M245 102q-8 16-12 34l9 5 15-35zM385 102q8 16 12 34l-9 5-15-35z" fillOpacity={muscleOpacity('Onderarmen')} />
+            <path d="M287 161q12-9 28 0v18q-14 7-28 0zM315 161q14-9 28 0v18q-16 7-28 0z" fillOpacity={muscleOpacity('Bilspieren')} />
+            <path d="M291 183q10-5 17 2l-2 42q-2 16-12 26l-7-16zM339 183q-10-5-17 2l2 42q2 16 12 26l7-16z" fillOpacity={muscleOpacity('Hamstrings')} />
+            <path d="M296 263q8 0 13 5l-4 33-10 1-4-16zM342 263q-8 0-13 5l4 33 10 1 4-16z" fillOpacity={muscleOpacity('Kuiten')} />
+          </g>
+          <g className="muscle-body-contours">
+            <path d="M105 87v91m-30-57q30 14 60 0M88 116q17 6 34 0M88 137q17 5 34 0M89 158q16 5 32 0M105 117v57M76 177q29 12 58 0M105 199v23M105 224v25" />
+            <path d="M315 91v68m-28-43q28 13 56 0M287 137q28 12 56 0M287 158q28 13 56 0M315 106v66M289 181q26 13 52 0M315 204v22M315 230v20" />
+            <path d="M61 95q7 12 11 26M149 95q-7 12-11 26M48 117l-8 26M162 117l8 26M86 250l-5 13M124 250l5 13M276 118l-8 24M354 118l8 24M301 250l-5 13M339 250l5 13" />
+          </g>
+        </g>
+      </svg>
+    </div>
+  )
 }
 
 function ExerciseLibraryPanel({
@@ -2056,9 +2401,10 @@ function App() {
   })
   const [customExercises, setCustomExercises] = useState<ExerciseOption[]>(() => {
     try {
-      return JSON.parse(
+      const exercises = JSON.parse(
         localStorage.getItem('strongjan-custom-exercises') || '[]',
       ) as ExerciseOption[]
+      return exercises.map(normalizeExerciseOption)
     } catch {
       return []
     }
@@ -2126,6 +2472,8 @@ function App() {
   )
   const [cloudSyncError, setCloudSyncError] = useState('')
   const [recoveryNow, setRecoveryNow] = useState(() => Date.now())
+  const [trainingLoadPeriod, setTrainingLoadPeriod] =
+    useState<TrainingLoadPeriod>('month')
   const currentAuthUserId = useRef<string | null>(null)
   const hydratedCloudUserId = useRef<string | null>(null)
   const lastSyncedCloudSignature = useRef('')
@@ -2167,12 +2515,26 @@ const [themeColor, setThemeColor] = useState(() => {
 
   const [expandedWorkout, setExpandedWorkout] = useState<number | null>(null)
 const allExerciseOptions = useMemo(
-  () => [...exerciseLibrary, ...customExercises],
+  () => [...exerciseLibrary, ...customExercises.map(normalizeExerciseOption)],
   [customExercises],
 )
 const muscleRecovery = useMemo(
   () => getMuscleRecovery(workouts, allExerciseOptions, recoveryNow),
   [workouts, allExerciseOptions, recoveryNow],
+)
+const muscleTrainingLoad = useMemo(
+  () =>
+    getMuscleTrainingLoad(
+      workouts,
+      allExerciseOptions,
+      trainingLoadPeriod,
+      recoveryNow,
+    ),
+  [workouts, allExerciseOptions, trainingLoadPeriod, recoveryNow],
+)
+const maxMuscleTrainingLoad = Math.max(
+  1,
+  ...muscleTrainingLoad.map(({ effectiveSets }) => effectiveSets),
 )
 const averageMuscleRecovery = muscleRecovery.length
   ? Math.round(
@@ -2295,7 +2657,7 @@ const averageMuscleRecovery = muscleRecovery.length
           lastSyncedCloudSignature.current = signature
           setWorkouts(data.workouts)
           setPresets(data.presets)
-          setCustomExercises(data.customExercises)
+          setCustomExercises(data.customExercises.map(normalizeExerciseOption))
           setPresetFolders(data.presetFolders)
           setBodyMeasurements(data.bodyMeasurements)
           setCloudSyncError('')
@@ -2337,7 +2699,9 @@ const averageMuscleRecovery = muscleRecovery.length
       if (data) {
         setWorkouts(fitnessData.workouts)
         setPresets(fitnessData.presets)
-        setCustomExercises(fitnessData.customExercises)
+        setCustomExercises(
+          fitnessData.customExercises.map(normalizeExerciseOption),
+        )
         setPresetFolders(fitnessData.presetFolders)
         setBodyMeasurements(fitnessData.bodyMeasurements)
       } else {
@@ -2487,7 +2851,7 @@ useEffect(() => {
     )
     const starterCategories = new Map<string, string>([
       ['bench press', 'Borst'],
-      ['squat', 'Benen'],
+      ['squat', 'Quadriceps'],
       ['deadlift', 'Rug'],
       ['overhead press', 'Schouders'],
       ['lat pulldown', 'Rug'],
@@ -2504,8 +2868,9 @@ useEffect(() => {
         muscleGroup:
           categories.get(name.toLocaleLowerCase()) ??
           starterCategories.get(name.toLocaleLowerCase()) ??
-          'Overig',
+          '',
       }))
+      .filter((exercise) => exercise.muscleGroup)
   }, [allExerciseOptions, exerciseNames, workouts])
 
   const progressMuscleGroups = [
@@ -4130,7 +4495,7 @@ onTouchEnd={() => {
               className={selfSection === 'exercise' ? 'active' : ''}
               onClick={() => setSelfSection('exercise')}
             >
-              Oefeningprogressie
+              Oefeningen
             </button>
             <button
               type="button"
@@ -4238,6 +4603,43 @@ onTouchEnd={() => {
                     )
                   })}
                 </div>
+              </section>
+              <section className="muscle-training-load">
+                <div className="muscle-training-load-heading">
+                  <div>
+                    <h2>Trainingsbelasting per spiergroep</h2>
+                    <p>
+                      Een set telt volledig voor de hoofdspier en half voor een
+                      subspier. Meer rood betekent meer trainingsbelasting.
+                    </p>
+                  </div>
+                  <label className="muscle-load-period">
+                    <span>Periode</span>
+                    <select
+                      value={trainingLoadPeriod}
+                      onChange={(event) =>
+                        setTrainingLoadPeriod(
+                          event.target.value as TrainingLoadPeriod,
+                        )
+                      }
+                    >
+                      <option value="week">Deze week</option>
+                      <option value="month">Deze maand</option>
+                      <option value="year">Dit jaar</option>
+                      <option value="all">Alles</option>
+                    </select>
+                  </label>
+                </div>
+                {muscleTrainingLoad.length === 0 ? (
+                  <p className="muscle-training-load-empty">
+                    Geen opgeslagen trainingssets in deze periode.
+                  </p>
+                ) : (
+                  <MuscleLoadVisualizations
+                    muscleLoads={muscleTrainingLoad}
+                    maxLoad={maxMuscleTrainingLoad}
+                  />
+                )}
               </section>
             </section>
           )}

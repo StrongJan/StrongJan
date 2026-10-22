@@ -288,7 +288,7 @@ body {
 
 .one-rep-max-inputs {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -305,31 +305,72 @@ body {
   box-sizing: border-box;
 }
 
-.one-rep-max-results {
+.rep-max-section {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.rep-max-section h3 {
+  margin: 0;
+  color: var(--theme-text);
+  font-size: 0.95rem;
+}
+
+.rep-max-results {
+  display: grid;
   gap: 8px;
 }
 
-.one-rep-max-result {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.rep-max-result {
+  display: grid;
+  gap: 7px;
   min-width: 0;
-  padding: 12px 10px;
+  padding: 10px 12px;
   border: 1px solid var(--theme-border);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--theme-light);
 }
 
-.one-rep-max-result span {
+.rep-max-result-heading {
+  display: grid;
+  grid-template-columns: minmax(48px, 0.5fr) minmax(0, 1fr) minmax(42px, 0.35fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.rep-max-result-heading strong {
+  color: var(--theme-text);
+  font-size: 0.9rem;
+}
+
+.rep-max-result-heading span {
   color: var(--theme-soft-text);
   font-size: 0.78rem;
 }
 
-.one-rep-max-result strong {
+.rep-max-result-heading span:nth-child(2) {
   color: var(--theme-text);
-  font-size: 1rem;
+  font-weight: 600;
+}
+
+.rep-max-result-heading span:last-child {
+  text-align: right;
+  font-weight: 600;
+}
+
+.rep-max-bar {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--theme-border);
+}
+
+.rep-max-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--theme);
+  transition: width 180ms ease;
 }
 
 .one-rep-max-hint,
@@ -459,6 +500,144 @@ body {
   font-size: 0.75rem;
   line-height: 1.2;
   overflow-wrap: anywhere;
+}
+
+.muscle-training-load {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--theme-border);
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 3px 12px rgb(38 53 42 / 3%);
+}
+
+.muscle-training-load-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.muscle-training-load-heading h2 {
+  margin: 0;
+  color: var(--theme-text);
+  font-size: 1.05rem;
+}
+
+.muscle-training-load-heading p {
+  margin: 5px 0 0;
+  color: var(--theme-soft-text);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.muscle-load-period {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 4px;
+  color: var(--theme-soft-text);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.muscle-load-period select {
+  width: auto;
+  min-width: 120px;
+  padding: 7px 28px 7px 9px;
+  border-radius: 9px;
+  color: var(--theme-text);
+  font-size: 0.8rem;
+}
+
+.muscle-load-visuals {
+  display: grid;
+  justify-items: center;
+}
+
+.muscle-radar-wrap {
+  width: 100%;
+  max-width: 420px;
+}
+
+.muscle-radar {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+
+.muscle-radar-grid {
+  fill: none;
+  stroke: var(--theme-border);
+  stroke-width: 1;
+}
+
+.muscle-radar-axis {
+  stroke: var(--theme-border);
+  stroke-width: 1;
+}
+
+.muscle-radar-data {
+  fill: rgb(220 38 38 / 26%);
+  stroke: #dc2626;
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+
+.muscle-radar-point {
+  fill: #dc2626;
+  stroke: #ffffff;
+  stroke-width: 1.5;
+}
+
+.muscle-radar-label {
+  fill: var(--theme-text);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.muscle-body-map {
+  display: none;
+}
+
+.muscle-body-caption {
+  fill: var(--theme-soft-text);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.muscle-body-silhouette {
+  fill: url(#body-base);
+  stroke: #a9aaa8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.2;
+}
+
+.muscle-body-regions {
+  fill: url(#muscle-shade);
+  stroke: #8f1821;
+  stroke-width: 0.8;
+  stroke-linejoin: round;
+}
+
+.muscle-body-contours {
+  fill: none;
+  stroke: #827f7d;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 0.8;
+  opacity: 0.58;
+  pointer-events: none;
+}
+
+.muscle-training-load-empty {
+  margin: 0;
+  color: var(--theme-soft-text);
+  font-size: 0.85rem;
 }
 
 .gym-attendance-header {
@@ -2378,6 +2557,10 @@ button.text-button:hover {
 }
 
 @media (max-width: 600px) {
+  .one-rep-max-inputs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   button {
     min-height: 42px;
   }
