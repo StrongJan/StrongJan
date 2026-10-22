@@ -706,9 +706,11 @@ function ProfileSettings({
       setFeedback('')
       setFeedbackIsError(false)
       const { error } = await client.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: window.location.origin },
-      })
+  provider: 'google',
+  options: {
+    redirectTo: 'https://strongjan.github.io/StrongJan/',
+  },
+})
       setIsSubmitting(false)
 
       if (error) {
