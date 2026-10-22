@@ -16,6 +16,7 @@ import './App.css'
 type SetEntry = {
   reps: string
   weight: string
+  rpe?: string
   completed?: boolean
 }
 
@@ -30,6 +31,21 @@ type Workout = {
   id: number
   date: string
   exercises: Exercise[]
+  muscleGroupWorkload?: Record<string, MuscleGroupWorkload>
+}
+
+type MuscleGroupWorkload = {
+  primarySets: number
+  primaryReps: number
+  primaryVolume: number
+  secondarySets: number
+  secondaryReps: number
+  secondaryVolume: number
+}
+
+type MuscleRecovery = {
+  muscleGroup: string
+  percentage: number
 }
 
 type WorkoutPreset = {
@@ -41,7 +57,7 @@ type WorkoutPreset = {
 
 const NEW_FOLDER_OPTION = '__new_folder__'
 
-type View = 'home' | 'training' | 'history' | 'progress' | 'settings'
+type View = 'home' | 'training' | 'history' | 'progress'
 type Metric = 'weight' | 'oneRepMax' | 'volume'
 
 
@@ -706,11 +722,11 @@ function ProfileSettings({
       setFeedback('')
       setFeedbackIsError(false)
       const { error } = await client.auth.signInWithOAuth({
-  provider: 'google',
-  options: {
-    redirectTo: 'https://strongjan.github.io/StrongJan/',
-  },
-})
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}`,
+        },
+      })
       setIsSubmitting(false)
 
       if (error) {
@@ -1019,57 +1035,244 @@ function ProgressChart({
 type ExerciseOption = {
   name: string
   muscleGroup: string
+  secondaryMuscleGroups?: string[]
   custom?: boolean
 }
 
-const exerciseLibrary: ExerciseOption[] = [
-  { name: 'Arnold Press', muscleGroup: 'Schouders' },
-  { name: 'Barbell Row', muscleGroup: 'Rug' },
-  { name: 'Barbell Bench Press', muscleGroup: 'Borst' },
-  { name: 'Bicep Curl', muscleGroup: 'Biceps' },
-  { name: 'Bulgarian Split Squat', muscleGroup: 'Benen' },
-  { name: 'Cable Crossover', muscleGroup: 'Borst' },
-  { name: 'Cable Fly', muscleGroup: 'Borst' },
-  { name: 'Cable Curl', muscleGroup: 'Biceps' },
-  { name: 'Chest Press Machine', muscleGroup: 'Borst' },
-  { name: 'Calf Raise', muscleGroup: 'Benen' },
-  { name: 'Chest-Supported Row', muscleGroup: 'Rug' },
-  { name: 'Close-Grip Lat Pulldown', muscleGroup: 'Rug' },
-  { name: 'Decline Bench Press', muscleGroup: 'Borst' },
-  { name: 'Concentration Curl', muscleGroup: 'Biceps' },
-  { name: 'Deadlift', muscleGroup: 'Rug' },
-  { name: 'Dumbbell Bench Press', muscleGroup: 'Borst' },
-  { name: 'Dumbbell Fly', muscleGroup: 'Borst' },
-  { name: 'Dumbbell Shoulder Press', muscleGroup: 'Schouders' },
-  { name: 'Face Pull', muscleGroup: 'Schouders' },
-  { name: 'Front Raise', muscleGroup: 'Schouders' },
-  { name: 'Glute Bridge', muscleGroup: 'Benen' },
-  { name: 'Hammer Curl', muscleGroup: 'Biceps' },
-  { name: 'Hip Thrust', muscleGroup: 'Benen' },
-  { name: 'Incline Barbell Bench Press', muscleGroup: 'Borst' },
-  { name: 'Incline Dumbbell Bench Press', muscleGroup: 'Borst' },
-  { name: 'Lat Pulldown', muscleGroup: 'Rug' },
-  { name: 'Leg Press', muscleGroup: 'Benen' },
-  { name: 'Leg Curl', muscleGroup: 'Benen' },
-  { name: 'Leg Extension', muscleGroup: 'Benen' },
-  { name: 'Lateral Raise', muscleGroup: 'Schouders' },
-  { name: 'Lunge', muscleGroup: 'Benen' },
-  { name: 'Pec Deck', muscleGroup: 'Borst' },
-  { name: 'Preacher Curl', muscleGroup: 'Biceps' },
-  { name: 'Pull-Up', muscleGroup: 'Rug' },
-  { name: 'Push-Up', muscleGroup: 'Borst' },
-  { name: 'Romanian Deadlift', muscleGroup: 'Benen' },
-  { name: 'Reverse Fly', muscleGroup: 'Schouders' },
-  { name: 'Seated Calf Raise', muscleGroup: 'Benen' },
-  { name: 'Overhead Triceps Extension', muscleGroup: 'Triceps' },
-  { name: 'Seated Cable Row', muscleGroup: 'Rug' },
-  { name: 'Squat', muscleGroup: 'Benen' },
-  { name: 'Straight-Arm Pulldown', muscleGroup: 'Rug' },
-  { name: 'Triceps Dip', muscleGroup: 'Triceps' },
-  { name: 'Triceps Skull Crusher', muscleGroup: 'Triceps' },
-  { name: 'Triceps Pushdown', muscleGroup: 'Triceps' },
-  { name: 'Walking Lunge', muscleGroup: 'Benen' },
+const exerciseMuscleGroupOptions = [
+  'Borst',
+  'Rug',
+  'Schouders',
+  'Biceps',
+  'Triceps',
+  'Quadriceps',
+  'Hamstrings',
+  'Bilspieren',
+  'Kuiten',
+  'Buik',
+  'Onderarmen',
+  'Trapezius',
+  'Benen',
+  'Overig',
 ]
+
+function defineExercise(
+  name: string,
+  muscleGroup: string,
+  secondaryMuscleGroups: string[] = [],
+): ExerciseOption {
+  return { name, muscleGroup, secondaryMuscleGroups }
+}
+
+const exerciseLibrary: ExerciseOption[] = [
+  defineExercise('Arnold Press', 'Schouders', ['Triceps']),
+  defineExercise('Barbell Row', 'Rug', ['Biceps', 'Schouders']),
+  defineExercise('Barbell Bench Press', 'Borst', ['Schouders', 'Triceps']),
+  defineExercise('Bicep Curl', 'Biceps', ['Onderarmen']),
+  defineExercise('Bulgarian Split Squat', 'Benen', ['Bilspieren', 'Hamstrings']),
+  defineExercise('Cable Crossover', 'Borst', ['Schouders']),
+  defineExercise('Cable Fly', 'Borst', ['Schouders']),
+  defineExercise('Cable Curl', 'Biceps', ['Onderarmen']),
+  defineExercise('Chest Press Machine', 'Borst', ['Schouders', 'Triceps']),
+  defineExercise('Calf Raise', 'Kuiten'),
+  defineExercise('Chest-Supported Row', 'Rug', ['Biceps', 'Schouders']),
+  defineExercise('Close-Grip Lat Pulldown', 'Rug', ['Biceps']),
+  defineExercise('Decline Bench Press', 'Borst', ['Triceps', 'Schouders']),
+  defineExercise('Concentration Curl', 'Biceps', ['Onderarmen']),
+  defineExercise('Deadlift', 'Rug', ['Bilspieren', 'Hamstrings', 'Trapezius']),
+  defineExercise('Dumbbell Bench Press', 'Borst', ['Schouders', 'Triceps']),
+  defineExercise('Dumbbell Fly', 'Borst', ['Schouders']),
+  defineExercise('Dumbbell Shoulder Press', 'Schouders', ['Triceps']),
+  defineExercise('Face Pull', 'Schouders', ['Rug']),
+  defineExercise('Front Raise', 'Schouders'),
+  defineExercise('Glute Bridge', 'Bilspieren', ['Hamstrings']),
+  defineExercise('Hammer Curl', 'Biceps', ['Onderarmen']),
+  defineExercise('Hip Thrust', 'Bilspieren', ['Hamstrings']),
+  defineExercise('Incline Barbell Bench Press', 'Borst', ['Schouders', 'Triceps']),
+  defineExercise('Incline Dumbbell Bench Press', 'Borst', ['Schouders', 'Triceps']),
+  defineExercise('Lat Pulldown', 'Rug', ['Biceps']),
+  defineExercise('Leg Press', 'Quadriceps', ['Bilspieren', 'Hamstrings']),
+  defineExercise('Leg Curl', 'Hamstrings'),
+  defineExercise('Leg Extension', 'Quadriceps'),
+  defineExercise('Lateral Raise', 'Schouders'),
+  defineExercise('Lunge', 'Quadriceps', ['Bilspieren', 'Hamstrings']),
+  defineExercise('Pec Deck', 'Borst', ['Schouders']),
+  defineExercise('Preacher Curl', 'Biceps', ['Onderarmen']),
+  defineExercise('Pull-Up', 'Rug', ['Biceps']),
+  defineExercise('Push-Up', 'Borst', ['Schouders', 'Triceps']),
+  defineExercise('Romanian Deadlift', 'Hamstrings', ['Bilspieren', 'Rug']),
+  defineExercise('Reverse Fly', 'Schouders', ['Rug']),
+  defineExercise('Seated Calf Raise', 'Kuiten'),
+  defineExercise('Overhead Triceps Extension', 'Triceps', ['Schouders']),
+  defineExercise('Seated Cable Row', 'Rug', ['Biceps', 'Schouders']),
+  defineExercise('Squat', 'Quadriceps', ['Bilspieren', 'Hamstrings']),
+  defineExercise('Straight-Arm Pulldown', 'Rug', ['Triceps']),
+  defineExercise('Triceps Dip', 'Triceps', ['Borst', 'Schouders']),
+  defineExercise('Triceps Skull Crusher', 'Triceps'),
+  defineExercise('Triceps Pushdown', 'Triceps'),
+  defineExercise('Walking Lunge', 'Quadriceps', ['Bilspieren', 'Hamstrings']),
+]
+
+function getWorkoutMuscleGroupWorkload(
+  workout: Workout,
+  exerciseOptions: ExerciseOption[],
+): Record<string, MuscleGroupWorkload> {
+  const optionsByName = new Map(
+    exerciseOptions.map((exercise) => [
+      exercise.name.toLocaleLowerCase(),
+      exercise,
+    ]),
+  )
+  const workload: Record<string, MuscleGroupWorkload> = {}
+
+  workout.exercises.forEach((exercise) => {
+    const exerciseOption = optionsByName.get(exercise.name.toLocaleLowerCase())
+    const primaryMuscleGroup = exerciseOption?.muscleGroup ?? 'Overig'
+    const secondaryMuscleGroups = exerciseOption?.secondaryMuscleGroups ?? []
+
+    const addWorkload = (muscleGroup: string, role: 'primary' | 'secondary') => {
+      const groupWorkload = workload[muscleGroup] ??= {
+        primarySets: 0,
+        primaryReps: 0,
+        primaryVolume: 0,
+        secondarySets: 0,
+        secondaryReps: 0,
+        secondaryVolume: 0,
+      }
+
+      exercise.sets.forEach((set) => {
+        const reps = Number(set.reps)
+        const weight = Number(set.weight)
+        const validReps = Number.isFinite(reps) && reps > 0 ? reps : 0
+        const validWeight =
+          Number.isFinite(weight) && weight >= 0 ? weight : 0
+        const setKey = role === 'primary' ? 'primary' : 'secondary'
+
+        groupWorkload[`${setKey}Sets`] += 1
+        groupWorkload[`${setKey}Reps`] += validReps
+        groupWorkload[`${setKey}Volume`] += validReps * validWeight
+      })
+    }
+
+    addWorkload(primaryMuscleGroup, 'primary')
+    new Set(secondaryMuscleGroups)
+      .forEach((muscleGroup) => {
+        if (muscleGroup !== primaryMuscleGroup) {
+          addWorkload(muscleGroup, 'secondary')
+        }
+      })
+  })
+
+  return workload
+}
+
+function getMuscleRecovery(
+  workouts: Workout[],
+  exerciseOptions: ExerciseOption[],
+  now: number,
+): MuscleRecovery[] {
+  const normalizeMuscleGroup = (muscleGroup: string) =>
+    muscleGroup === 'Trapezius' ? 'Rug' : muscleGroup
+  const recoveryHours = 48
+  const muscleGroups = new Set(
+    exerciseMuscleGroupOptions.map(normalizeMuscleGroup),
+  )
+  const fatigueByMuscle = new Map<string, number>()
+  const optionsByName = new Map(
+    exerciseOptions.map((exercise) => [
+      exercise.name.toLocaleLowerCase(),
+      exercise,
+    ]),
+  )
+
+  exerciseOptions.forEach((exercise) => {
+    muscleGroups.add(normalizeMuscleGroup(exercise.muscleGroup))
+    exercise.secondaryMuscleGroups?.forEach((group) =>
+      muscleGroups.add(normalizeMuscleGroup(group)),
+    )
+  })
+
+  workouts.forEach((workout) => {
+    const idTimestamp = Number(workout.id)
+    const dateTimestamp = parseWorkoutDate(workout.date)?.getTime() ?? now
+    const workoutTimestamp =
+      idTimestamp > 1_000_000_000_000 && idTimestamp <= now
+        ? idTimestamp
+        : dateTimestamp
+    const recoveryRemaining = Math.max(
+      0,
+      1 - (now - workoutTimestamp) / (recoveryHours * 60 * 60 * 1000),
+    )
+    if (recoveryRemaining === 0) return
+
+    workout.exercises.forEach((exercise) => {
+      const option = optionsByName.get(exercise.name.toLocaleLowerCase())
+      const primaryGroup = normalizeMuscleGroup(option?.muscleGroup ?? 'Overig')
+      const secondaryGroups = new Set(
+        (option?.secondaryMuscleGroups ?? []).map(normalizeMuscleGroup),
+      )
+
+      exercise.sets.forEach((set) => {
+        const reps = Number(set.reps)
+        if (!Number.isFinite(reps) || reps <= 0) return
+
+        const parsedRpe = Number(set.rpe)
+        const rpe =
+          Number.isFinite(parsedRpe) && parsedRpe >= 1
+            ? Math.min(10, parsedRpe)
+            : 8
+        const effort = rpe / 10
+        const primaryFatigue = 8 * effort * recoveryRemaining
+        fatigueByMuscle.set(
+          primaryGroup,
+          (fatigueByMuscle.get(primaryGroup) ?? 0) + primaryFatigue,
+        )
+
+        secondaryGroups.forEach((group) => {
+          if (group === primaryGroup) return
+          const secondaryFatigue = 4 * effort * recoveryRemaining
+          fatigueByMuscle.set(
+            group,
+            (fatigueByMuscle.get(group) ?? 0) + secondaryFatigue,
+          )
+        })
+      })
+    })
+  })
+
+  const priorityGroups = [
+    'Borst',
+    'Schouders',
+    'Triceps',
+    'Biceps',
+    'Rug',
+    'Onderarmen',
+  ]
+
+  return [...muscleGroups]
+    .sort((left, right) => {
+      const leftPriority = priorityGroups.indexOf(left)
+      const rightPriority = priorityGroups.indexOf(right)
+      if (leftPriority !== -1 || rightPriority !== -1) {
+        if (leftPriority === -1) return 1
+        if (rightPriority === -1) return -1
+        return leftPriority - rightPriority
+      }
+      return left.localeCompare(right, 'nl')
+    })
+    .map((muscleGroup) => ({
+      muscleGroup,
+      percentage: Math.round(
+        Math.max(0, 100 - (fatigueByMuscle.get(muscleGroup) ?? 0)),
+      ),
+    }))
+}
+
+function getRecoveryColor(percentage: number) {
+  const clampedPercentage = Math.min(100, Math.max(60, percentage))
+  const hue = ((clampedPercentage - 60) / 40) * 120
+  return `hsl(${hue} 85% 42%)`
+}
 
 function ExerciseLibraryPanel({
   exercises,
@@ -1080,7 +1283,11 @@ function ExerciseLibraryPanel({
   exercises: ExerciseOption[]
   onSelect?: (exerciseName: string) => void
   onBack: () => void
-  onAddExercise: (name: string, muscleGroup: string) => void
+  onAddExercise: (
+    name: string,
+    muscleGroup: string,
+    secondaryMuscleGroups: string[],
+  ) => void
 }) {
   const [search, setSearch] = useState('')
   const [selectedGroup, setSelectedGroup] = useState('Alle')
@@ -1088,16 +1295,15 @@ function ExerciseLibraryPanel({
   const [showAddForm, setShowAddForm] = useState(false)
   const [newExerciseName, setNewExerciseName] = useState('')
   const [newExerciseGroup, setNewExerciseGroup] = useState('Borst')
+  const [newExerciseSecondaryGroups, setNewExerciseSecondaryGroups] =
+    useState<string[]>([])
+  const [expandedExerciseName, setExpandedExerciseName] = useState<string | null>(
+    null,
+  )
   const [formError, setFormError] = useState('')
   const muscleGroups = [
     'Alle',
-    'Borst',
-    'Rug',
-    'Schouders',
-    'Biceps',
-    'Triceps',
-    'Benen',
-    'Overig',
+    ...new Set(exercises.map((exercise) => exercise.muscleGroup)),
   ]
 
   const filteredExercises = exercises
@@ -1127,8 +1333,9 @@ function ExerciseLibraryPanel({
       return
     }
 
-    onAddExercise(trimmedName, newExerciseGroup)
+    onAddExercise(trimmedName, newExerciseGroup, newExerciseSecondaryGroups)
     setNewExerciseName('')
+    setNewExerciseSecondaryGroups([])
     setFormError('')
     setShowAddForm(false)
     setShowMenu(false)
@@ -1190,18 +1397,39 @@ function ExerciseLibraryPanel({
             />
           </label>
           <label>
-            Spiergroep
+            Hoofdspiergroep
             <select
               value={newExerciseGroup}
               onChange={(event) => setNewExerciseGroup(event.target.value)}
             >
-              {muscleGroups
-                .filter((group) => group !== 'Alle')
-                .map((group) => (
-                  <option key={group} value={group}>{group}</option>
-                ))}
+              {exerciseMuscleGroupOptions.map((group) => (
+                <option key={group} value={group}>{group}</option>
+              ))}
             </select>
           </label>
+          <fieldset className="exercise-secondary-groups">
+            <legend>Subspiergroepen (optioneel)</legend>
+            <div>
+              {exerciseMuscleGroupOptions
+                .filter((group) => group !== newExerciseGroup)
+                .map((group) => (
+                  <label key={group}>
+                    <input
+                      type="checkbox"
+                      checked={newExerciseSecondaryGroups.includes(group)}
+                      onChange={(event) =>
+                        setNewExerciseSecondaryGroups((current) =>
+                          event.target.checked
+                            ? [...current, group]
+                            : current.filter((item) => item !== group),
+                        )
+                      }
+                    />
+                    {group}
+                  </label>
+                ))}
+            </div>
+          </fieldset>
           {formError && <p className="exercise-form-error">{formError}</p>}
           <div className="exercise-create-actions">
             <button type="submit">Toevoegen</button>
@@ -1246,12 +1474,35 @@ function ExerciseLibraryPanel({
               <button
                 type="button"
                 className="library-exercise"
-                disabled={!onSelect}
-                onClick={() => onSelect?.(exercise.name)}
+                aria-expanded={
+                  onSelect ? undefined : expandedExerciseName === exercise.name
+                }
+                onClick={() => {
+                  if (onSelect) {
+                    onSelect(exercise.name)
+                  } else {
+                    setExpandedExerciseName((current) =>
+                      current === exercise.name ? null : exercise.name,
+                    )
+                  }
+                }}
               >
                 <span>{exercise.name}</span>
-                <span>{exercise.muscleGroup}{onSelect ? '　＋' : ''}</span>
+                <span>{exercise.muscleGroup}{onSelect ? '　＋' : '　⌄'}</span>
               </button>
+              {!onSelect && expandedExerciseName === exercise.name && (
+                <div className="exercise-muscle-details">
+                  <p>
+                    <strong>Hoofdspiergroep:</strong> {exercise.muscleGroup}
+                  </p>
+                  <p>
+                    <strong>Subspiergroepen:</strong>{' '}
+                    {exercise.secondaryMuscleGroups?.length
+                      ? exercise.secondaryMuscleGroups.join(', ')
+                      : 'Geen geregistreerd'}
+                  </p>
+                </div>
+              )}
             </Fragment>
           )
         })}
@@ -1843,6 +2094,9 @@ function App() {
   const [exerciseName, setExerciseName] = useState('Bench press')
   const [message, setMessage] = useState('')
   const [view, setView] = useState<View>('home')
+  const [selfSection, setSelfSection] = useState<
+    'overview' | 'exercise' | 'measurements' | 'settings'
+  >('overview')
   const [selectedExercise, setSelectedExercise] = useState('')
   const [progressExerciseSearch, setProgressExerciseSearch] = useState('')
   const [progressMuscleGroup, setProgressMuscleGroup] = useState('Alle')
@@ -1871,6 +2125,7 @@ function App() {
     supabaseConfigured ? 'loading' : 'unavailable',
   )
   const [cloudSyncError, setCloudSyncError] = useState('')
+  const [recoveryNow, setRecoveryNow] = useState(() => Date.now())
   const currentAuthUserId = useRef<string | null>(null)
   const hydratedCloudUserId = useRef<string | null>(null)
   const lastSyncedCloudSignature = useRef('')
@@ -1915,6 +2170,16 @@ const allExerciseOptions = useMemo(
   () => [...exerciseLibrary, ...customExercises],
   [customExercises],
 )
+const muscleRecovery = useMemo(
+  () => getMuscleRecovery(workouts, allExerciseOptions, recoveryNow),
+  [workouts, allExerciseOptions, recoveryNow],
+)
+const averageMuscleRecovery = muscleRecovery.length
+  ? Math.round(
+      muscleRecovery.reduce((total, muscle) => total + muscle.percentage, 0) /
+        muscleRecovery.length,
+    )
+  : 100
   useEffect(() => {
     localStorage.setItem('fitnessai-workouts', JSON.stringify(workouts))
   }, [workouts])
@@ -1943,6 +2208,11 @@ const allExerciseOptions = useMemo(
       JSON.stringify(presetFolders),
     )
   }, [presetFolders])
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setRecoveryNow(Date.now()), 60_000)
+    return () => window.clearInterval(intervalId)
+  }, [])
 
   useEffect(() => {
     currentCloudFitnessData.current = cloudFitnessData
@@ -2649,10 +2919,14 @@ const personalRecordsByWorkout = useMemo(() => {
     )
   }
 
-  function addCustomExercise(name: string, muscleGroup: string) {
+  function addCustomExercise(
+    name: string,
+    muscleGroup: string,
+    secondaryMuscleGroups: string[],
+  ) {
     setCustomExercises((previous) => [
       ...previous,
-      { name, muscleGroup, custom: true },
+      { name, muscleGroup, secondaryMuscleGroups, custom: true },
     ])
   }
 
@@ -2878,7 +3152,21 @@ function saveWorkoutOnly() {
     return
   }
 
-  setWorkouts((previous) => [activeWorkout, ...previous])
+  const savedWorkout: Workout = {
+    ...activeWorkout,
+    exercises: activeWorkout.exercises.map((exercise) => ({
+      ...exercise,
+      sets: exercise.sets.map((set) => ({
+        ...set,
+        rpe: set.rpe || '8',
+      })),
+    })),
+    muscleGroupWorkload: getWorkoutMuscleGroupWorkload(
+      activeWorkout,
+      allExerciseOptions,
+    ),
+  }
+  setWorkouts((previous) => [savedWorkout, ...previous])
   setActiveWorkout(null)
   setWorkoutStartedAt(null)
   setWorkoutElapsedSeconds(0)
@@ -3013,64 +3301,20 @@ function deleteSet(exerciseId: number, setIndex: number) {
 
   <button
     className={view === 'progress' ? 'nav-button active' : 'nav-button'}
+    aria-label="Oefeningprogressie en metingen"
     onClick={() => setView('progress')}
   >
-    <span className="nav-icon">↗</span>
-    <span>Progressie</span>
+    <svg
+      className="nav-icon nav-user-icon"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5.5 20v-1.5a6.5 6.5 0 0 1 13 0V20z" />
+    </svg>
+    <span>Jij</span>
   </button>
 </nav>
-{view === 'settings' && (
-  <section className="settings-page">
-    <button
-      className="secondary-button"
-      onClick={() => setView('home')}
-    >
-      ← Terug naar home
-    </button>
-
-    <h2>Instellingen</h2>
-    <ProfileSettings
-      syncStatus={cloudSyncStatus}
-      syncError={cloudSyncError}
-    />
-
-    <div className="settings-theme-section">
-      <h3>Uiterlijk</h3>
-    <p>Kies de kleur van StrongJan.</p>
-
-    <div className="theme-options">
-      {[
-        { id: 'green', name: 'Groen', color: '#285943' },
-        { id: 'red', name: 'Rood', color: '#c0392b' },
-        { id: 'blue', name: 'Blauw', color: '#2471a3' },
-        { id: 'purple', name: 'Paars', color: '#7950a0' },
-        { id: 'gray', name: 'Grijs', color: '#626b73' },
-        { id: 'orange', name: 'Oranje', color: '#d97726' },
-        { id: 'black', name: 'Zwart', color: '#252525' },
-        { id: 'turquoise', name: 'Turquoise', color: '#168a83' },
-      ].map((theme) => (
-        <button
-          key={theme.id}
-          className={
-            themeColor === theme.id
-              ? 'theme-option selected'
-              : 'theme-option'
-          }
-          onClick={() => setThemeColor(theme.id)}
-        >
-          <span
-            className="theme-swatch"
-            style={{ backgroundColor: theme.color }}
-          />
-          <span>{theme.name}</span>
-          {themeColor === theme.id && <span>✓</span>}
-        </button>
-      ))}
-    </div>
-    </div>
-  </section>
-)}
-
       {message && <p className="message">{message}</p>}
 {showWorkoutSummary && activeWorkout && (
   <div className="summary-overlay">
@@ -3239,8 +3483,6 @@ function deleteSet(exerciseId: number, setIndex: number) {
       <div className="hero-decoration" aria-hidden="true">🏋</div>
     </div>
 
-    <GymAttendanceDashboard workouts={workouts} />
-
     <div className="home-section-heading">
       <div>
         <h2>Jouw statistieken</h2>
@@ -3356,37 +3598,6 @@ function deleteSet(exerciseId: number, setIndex: number) {
     )}
 
     <OneRepMaxCalculator />
-
-    <div className="home-section-heading">
-      <div>
-        <h2>Jouw volgende stap</h2>
-        <p>Blijf bouwen aan je kracht.</p>
-      </div>
-    </div>
-
-    <button
-      className="home-progress-card"
-      onClick={() => setView('progress')}
-    >
-      <div>
-        <span className="home-progress-label">PROGRESSIE</span>
-        <h3>Bekijk hoe je sterker wordt</h3>
-        <p>Volg je werkgewichten, geschatte 1RM en trainingsvolume.</p>
-      </div>
-      <span className="home-progress-arrow">↗</span>
-    </button>
-    
-    <button
-      className="home-settings-button"
-      onClick={() => setView('settings')}
-    >
-      <span>⚙</span>
-      <span>
-        <strong>Instellingen</strong>
-        <small>Pas het uiterlijk van StrongJan aan</small>
-      </span>
-      <span className="home-settings-arrow">→</span>
-    </button>
 
   </section>
 )}
@@ -3577,6 +3788,7 @@ function deleteSet(exerciseId: number, setIndex: number) {
   <span>Set</span>
   <span>Herhalingen</span>
   <span>Gewicht (kg)</span>
+  <span>RPE</span>
 </div>
 
                   
@@ -3708,6 +3920,24 @@ onTouchEnd={() => {
               exercise.id,
               index,
               'weight',
+              event.target.value,
+            )
+          }
+        />
+
+        <input
+          aria-label={`RPE set ${index + 1}, van 1 tot 10`}
+          type="number"
+          min="1"
+          max="10"
+          step="0.5"
+          placeholder="8"
+          value={set.rpe ?? '8'}
+          onChange={(event) =>
+            updateSet(
+              exercise.id,
+              index,
+              'rpe',
               event.target.value,
             )
           }
@@ -3865,8 +4095,156 @@ onTouchEnd={() => {
       )}
 
       {view === 'progress' && (
-        <section className="history">
-          <h2>Progressie per oefening</h2>
+        <section className="self-page">
+          <header className="self-page-header">
+            <button
+              type="button"
+              className="self-settings-button"
+              aria-label="Instellingen"
+              title="Instellingen"
+              aria-pressed={selfSection === 'settings'}
+              onClick={() =>
+                setSelfSection((current) =>
+                  current === 'settings' ? 'overview' : 'settings',
+                )
+              }
+            >
+              ⚙
+            </button>
+          </header>
+
+          <div className="self-tabs" role="tablist" aria-label="Jij">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={selfSection === 'overview'}
+              className={selfSection === 'overview' ? 'active' : ''}
+              onClick={() => setSelfSection('overview')}
+            >
+              Overzicht
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={selfSection === 'exercise'}
+              className={selfSection === 'exercise' ? 'active' : ''}
+              onClick={() => setSelfSection('exercise')}
+            >
+              Oefeningprogressie
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={selfSection === 'measurements'}
+              className={selfSection === 'measurements' ? 'active' : ''}
+              onClick={() => setSelfSection('measurements')}
+            >
+              Metingen
+            </button>
+          </div>
+
+          {selfSection === 'settings' && (
+            <section className="settings-page">
+              <h2>Instellingen</h2>
+              <ProfileSettings
+                syncStatus={cloudSyncStatus}
+                syncError={cloudSyncError}
+              />
+
+              <div className="settings-theme-section">
+                <h3>Uiterlijk</h3>
+                <p>Kies de kleur van StrongJan.</p>
+                <div className="theme-options">
+                  {[
+                    { id: 'green', name: 'Groen', color: '#285943' },
+                    { id: 'red', name: 'Rood', color: '#c0392b' },
+                    { id: 'blue', name: 'Blauw', color: '#2471a3' },
+                    { id: 'purple', name: 'Paars', color: '#7950a0' },
+                    { id: 'gray', name: 'Grijs', color: '#626b73' },
+                    { id: 'orange', name: 'Oranje', color: '#d97726' },
+                    { id: 'black', name: 'Zwart', color: '#252525' },
+                    { id: 'turquoise', name: 'Turquoise', color: '#168a83' },
+                  ].map((theme) => (
+                    <button
+                      key={theme.id}
+                      type="button"
+                      className={
+                        themeColor === theme.id
+                          ? 'theme-option selected'
+                          : 'theme-option'
+                      }
+                      onClick={() => setThemeColor(theme.id)}
+                    >
+                      <span
+                        className="theme-swatch"
+                        style={{ backgroundColor: theme.color }}
+                      />
+                      <span>{theme.name}</span>
+                      {themeColor === theme.id && <span>✓</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {selfSection === 'overview' && (
+            <section className="self-overview">
+              <GymAttendanceDashboard workouts={workouts} />
+              <section className="muscle-recovery">
+                <div className="muscle-recovery-heading">
+                  <div className="muscle-recovery-title">
+                    <h2>Spierherstel</h2>
+                    <p>Herstelindicatie op basis van RPE over 48 uur.</p>
+                  </div>
+                  <div className="muscle-recovery-total">
+                    <strong>Totaal spierherstel</strong>
+                    <div
+                      className="muscle-recovery-circle muscle-recovery-average"
+                      role="img"
+                      aria-label={`Totaal spierherstel: ${averageMuscleRecovery}%`}
+                      style={{
+                        background: `conic-gradient(${getRecoveryColor(averageMuscleRecovery)} ${averageMuscleRecovery}%, var(--theme-light) 0)`,
+                      }}
+                    >
+                      <span>{averageMuscleRecovery}%</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="muscle-recovery-grid">
+                  {muscleRecovery.map(({ muscleGroup, percentage }) => {
+                    const recoveryColor = getRecoveryColor(percentage)
+                    const status = percentage >= 60
+                      ? 'trainen aanbevolen'
+                      : 'trainen niet aanbevolen'
+
+                    return (
+                      <article
+                        className="muscle-recovery-card"
+                        key={muscleGroup}
+                      >
+                        <div
+                          className="muscle-recovery-circle"
+                          role="img"
+                          aria-label={`${muscleGroup}: ${percentage}% hersteld, ${status}`}
+                          style={{
+                            background: `conic-gradient(${recoveryColor} ${percentage}%, var(--theme-light) 0)`,
+                          }}
+                        >
+                          <span>{percentage}%</span>
+                        </div>
+                        <strong>{muscleGroup}</strong>
+                      </article>
+                    )
+                  })}
+                </div>
+              </section>
+            </section>
+          )}
+
+          {selfSection === 'exercise' && (
+          <section className="history">
+          <h2>Oefeningprogressie</h2>
           <p className="subtitle">
             Bekijk hoe je kracht en trainingsvolume zich ontwikkelen.
           </p>
@@ -4055,8 +4433,13 @@ onTouchEnd={() => {
           </>
           )}
 
+          </section>
+          )}
+
+          {selfSection === 'measurements' && (
+          <section className="history">
           <section className="body-progress-section">
-            <h2>Lichaamsprogressie</h2>
+            <h2>Metingen</h2>
             <p className="subtitle">
               Houd je gewicht en lichaamsomtrek bij. Kies een meting om je
               voortgang te bekijken of een nieuwe waarde toe te voegen.
@@ -4165,6 +4548,8 @@ onTouchEnd={() => {
               )}
             </article>
           </section>
+          </section>
+          )}
         </section>
       )}
 

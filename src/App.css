@@ -351,6 +351,116 @@ body {
   box-shadow: 0 3px 12px rgb(38 53 42 / 3%);
 }
 
+.self-overview,
+.muscle-recovery {
+  display: grid;
+  gap: 14px;
+}
+
+.muscle-recovery {
+  padding: 16px;
+  border: 1px solid var(--theme-border);
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 3px 12px rgb(38 53 42 / 3%);
+}
+
+.muscle-recovery-heading h2 {
+  margin: 0;
+  color: var(--theme-text);
+  font-size: 1.1rem;
+}
+
+.muscle-recovery-heading {
+  position: relative;
+  display: grid;
+  min-height: 72px;
+  place-items: center;
+  padding: 0 76px;
+  text-align: center;
+}
+
+.muscle-recovery-title h2 {
+  margin: 0;
+  color: var(--theme-text);
+  font-size: 1.1rem;
+}
+
+.muscle-recovery-title p {
+  margin: 5px 0 0;
+  color: var(--theme-soft-text);
+  font-size: 0.82rem;
+}
+
+.muscle-recovery-total {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  color: var(--theme-soft-text);
+  font-size: 0.6rem;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.muscle-recovery-average {
+  width: 48px;
+  height: 48px;
+  font-size: 0.75rem;
+}
+
+.muscle-recovery-grid {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: 2px 2px 8px;
+  scrollbar-width: thin;
+}
+
+.muscle-recovery-card {
+  display: grid;
+  flex: 0 0 84px;
+  justify-items: center;
+  gap: 7px;
+  min-width: 0;
+  text-align: center;
+}
+
+.muscle-recovery-circle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  color: var(--theme-text);
+  font-size: 0.92rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 750;
+}
+
+.muscle-recovery-circle::before {
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: #ffffff;
+  content: '';
+}
+
+.muscle-recovery-circle span {
+  position: relative;
+}
+
+.muscle-recovery-card > strong {
+  color: var(--theme-soft-text);
+  font-size: 0.75rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
 .gym-attendance-header {
   position: relative;
   display: flex;
@@ -797,6 +907,16 @@ body {
   line-height: 1.2;
 }
 
+.nav-user-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .set-checkbox {
   width: 20px;
   height: 20px;
@@ -811,7 +931,7 @@ body {
 
 .set-heading {
   display: grid;
-  grid-template-columns: 32px 36px minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: 32px 36px minmax(0, 1fr) minmax(0, 1fr) 60px;
   align-items: center;
   gap: 8px;
   margin-bottom: 10px;
@@ -828,7 +948,7 @@ body {
 .set-row {
   margin: 8px 0;
   display: grid;
-  grid-template-columns: 32px 36px minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: 32px 36px minmax(0, 1fr) minmax(0, 1fr) 60px;
   align-items: center;
   gap: 8px;
   padding: 8px;
@@ -843,6 +963,10 @@ body {
   min-width: 0;
   padding: 10px 6px;
   box-sizing: border-box;
+  text-align: center;
+}
+
+.set-heading > span:last-child {
   text-align: center;
 }
 
@@ -1003,6 +1127,42 @@ body {
   font-weight: 400;
 }
 
+.exercise-secondary-groups {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--theme-border);
+  border-radius: 10px;
+}
+
+.exercise-secondary-groups legend {
+  padding: 0 4px;
+  color: var(--theme-text);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.exercise-secondary-groups > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.exercise-secondary-groups label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--theme-text);
+  font-size: 0.82rem;
+  font-weight: 400;
+}
+
+.exercise-secondary-groups input {
+  width: auto;
+  margin: 0;
+}
+
 .exercise-form-error {
   margin: 0;
   color: #a43e32;
@@ -1080,6 +1240,28 @@ body {
   cursor: default;
 }
 
+.exercise-muscle-details {
+  display: grid;
+  gap: 5px;
+  margin-top: -8px;
+  padding: 12px 14px;
+  border: 1px solid var(--theme-border);
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+  color: var(--theme-soft-text);
+  background: var(--theme-light);
+  font-size: 0.84rem;
+}
+
+.exercise-muscle-details p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.exercise-muscle-details strong {
+  color: var(--theme-text);
+}
+
 .manage-exercises-button {
   width: 100%;
   margin: 8px 0 12px;
@@ -1122,6 +1304,58 @@ body {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.self-page {
+  display: grid;
+  gap: 16px;
+}
+
+.self-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.self-settings-button {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  min-height: 42px;
+  padding: 0;
+  border: 1px solid var(--theme-border);
+  border-radius: 12px;
+  color: var(--theme-text);
+  background: #ffffff;
+  font-size: 1.25rem;
+}
+
+.self-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 5px;
+  border: 1px solid var(--theme-border);
+  border-radius: 14px;
+  background: var(--theme-light);
+}
+
+.self-tabs button {
+  min-width: 0;
+  padding: 10px 5px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--theme-soft-text);
+  background: transparent;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.self-tabs button.active {
+  border-color: var(--theme-border);
+  color: var(--theme-text);
+  background: #ffffff;
 }
 
 .settings-page > h2,
@@ -2176,8 +2410,8 @@ button.text-button:hover {
   }
 
   .set-row {
-    grid-template-columns: 26px 26px minmax(0, 1fr) minmax(0, 1fr);
-    gap: 10px;
+    grid-template-columns: 22px 24px minmax(36px, 0.8fr) minmax(44px, 1fr) 46px;
+    gap: 5px;
     padding-left: 8px;
     padding-right: 8px;
   }
@@ -2185,8 +2419,8 @@ button.text-button:hover {
   .set-heading {
     width: 100%;
     min-width: 0;
-    grid-template-columns: 26px 26px minmax(0, 1fr) minmax(0, 1fr);
-    gap: 10px;
+    grid-template-columns: 22px 24px minmax(36px, 0.8fr) minmax(44px, 1fr) 46px;
+    gap: 5px;
     padding-left: 8px;
     padding-right: 8px;
     font-size: 0.78rem;
@@ -2249,15 +2483,15 @@ button.text-button:hover {
 
 @media (max-width: 420px) {
   .set-row {
-    grid-template-columns: 26px 26px minmax(0, 1fr) minmax(0, 1fr);
-    gap: 5px;
+    grid-template-columns: 20px 22px minmax(34px, 0.8fr) minmax(40px, 1fr) 42px;
+    gap: 4px;
     padding-left: 5px;
     padding-right: 5px;
   }
 
   .set-heading {
-    grid-template-columns: 26px 26px minmax(0, 1fr) minmax(0, 1fr);
-    gap: 5px;
+    grid-template-columns: 20px 22px minmax(34px, 0.8fr) minmax(40px, 1fr) 42px;
+    gap: 4px;
     padding-left: 5px;
     padding-right: 5px;
     font-size: 0.75rem;
