@@ -43,6 +43,7 @@ export default function GoogleLogin() {
 
  
 async function signInWithGoogle() {
+    console.log('Google-loginfunctie aangeroepen')
   setError('')
 
   const client = supabase
