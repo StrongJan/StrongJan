@@ -1095,6 +1095,8 @@ const exerciseMuscleGroupOptions = [
   'Quadriceps',
   'Hamstrings',
   'Bilspieren',
+  'Heupadductoren',
+  'Heupabductoren',
   'Kuiten',
   'Buik',
   'Onderarmen',
@@ -1136,18 +1138,26 @@ function normalizeExerciseOption(exercise: ExerciseOption): ExerciseOption {
 }
 
 const exerciseLibrary: ExerciseOption[] = [
+  defineExercise('Ab Wheel Rollout', 'Buik'),
   defineExercise('Arnold Press', 'Schouders', ['Triceps']),
+  defineExercise('Back Extension', 'Rug', ['Bilspieren', 'Hamstrings']),
   defineExercise('Barbell Row', 'Rug', ['Biceps', 'Schouders']),
   defineExercise('Barbell Bench Press', 'Borst', ['Schouders', 'Triceps']),
   defineExercise('Bicep Curl', 'Biceps', ['Onderarmen']),
   defineExercise('Bulgarian Split Squat', 'Quadriceps', ['Bilspieren', 'Hamstrings']),
+  defineExercise('Cable Chest Press', 'Borst', ['Schouders', 'Triceps']),
+  defineExercise('Cable Hip Abduction', 'Heupabductoren'),
+  defineExercise('Cable Hip Adduction', 'Heupadductoren'),
+  defineExercise('Cable Lateral Raise', 'Schouders'),
   defineExercise('Cable Crossover', 'Borst', ['Schouders']),
   defineExercise('Cable Fly', 'Borst', ['Schouders']),
   defineExercise('Cable Curl', 'Biceps', ['Onderarmen']),
+  defineExercise('Cable Rear Delt Fly', 'Schouders', ['Rug']),
   defineExercise('Chest Press Machine', 'Borst', ['Schouders', 'Triceps']),
   defineExercise('Calf Raise', 'Kuiten'),
   defineExercise('Chest-Supported Row', 'Rug', ['Biceps', 'Schouders']),
   defineExercise('Close-Grip Lat Pulldown', 'Rug', ['Biceps']),
+  defineExercise('Close-Grip Bench Press', 'Triceps', ['Borst', 'Schouders']),
   defineExercise('Decline Bench Press', 'Borst', ['Triceps', 'Schouders']),
   defineExercise('Concentration Curl', 'Biceps', ['Onderarmen']),
   defineExercise('Deadlift', 'Rug', ['Bilspieren', 'Hamstrings', 'Trapezius']),
@@ -1155,32 +1165,53 @@ const exerciseLibrary: ExerciseOption[] = [
   defineExercise('Dumbbell Fly', 'Borst', ['Schouders']),
   defineExercise('Dumbbell Shoulder Press', 'Schouders', ['Triceps']),
   defineExercise('Face Pull', 'Schouders', ['Rug']),
+  defineExercise('Front Squat', 'Quadriceps', ['Bilspieren']),
   defineExercise('Front Raise', 'Schouders'),
   defineExercise('Glute Bridge', 'Bilspieren', ['Hamstrings']),
+  defineExercise('Glute Kickback', 'Bilspieren', ['Hamstrings']),
+  defineExercise('Goblet Squat', 'Quadriceps', ['Bilspieren']),
+  defineExercise('Hack Squat', 'Quadriceps', ['Bilspieren']),
   defineExercise('Hammer Curl', 'Biceps', ['Onderarmen']),
+  defineExercise('Hanging Knee Raise', 'Buik'),
+  defineExercise('Hip Abduction Machine', 'Heupabductoren'),
+  defineExercise('Hip Adduction Machine', 'Heupadductoren'),
   defineExercise('Hip Thrust', 'Bilspieren', ['Hamstrings']),
+  defineExercise('Incline Dumbbell Curl', 'Biceps', ['Onderarmen']),
   defineExercise('Incline Barbell Bench Press', 'Borst', ['Schouders', 'Triceps']),
   defineExercise('Incline Dumbbell Bench Press', 'Borst', ['Schouders', 'Triceps']),
+  defineExercise('Incline Machine Chest Press', 'Borst', ['Schouders', 'Triceps']),
   defineExercise('Lat Pulldown', 'Rug', ['Biceps']),
   defineExercise('Leg Press', 'Quadriceps', ['Bilspieren', 'Hamstrings']),
   defineExercise('Leg Curl', 'Hamstrings'),
   defineExercise('Leg Extension', 'Quadriceps'),
   defineExercise('Lateral Raise', 'Schouders'),
   defineExercise('Lunge', 'Quadriceps', ['Bilspieren', 'Hamstrings']),
+  defineExercise('Nordic Hamstring Curl', 'Hamstrings'),
   defineExercise('Pec Deck', 'Borst', ['Schouders']),
+  defineExercise('Plank', 'Buik'),
   defineExercise('Preacher Curl', 'Biceps', ['Onderarmen']),
   defineExercise('Pull-Up', 'Rug', ['Biceps']),
   defineExercise('Push-Up', 'Borst', ['Schouders', 'Triceps']),
+  defineExercise('Reverse Curl', 'Onderarmen', ['Biceps']),
+  defineExercise('Reverse-Grip Lat Pulldown', 'Rug', ['Biceps']),
   defineExercise('Romanian Deadlift', 'Hamstrings', ['Bilspieren', 'Rug']),
   defineExercise('Reverse Fly', 'Schouders', ['Rug']),
+  defineExercise('Russian Twist', 'Buik'),
+  defineExercise('Rope Triceps Pushdown', 'Triceps'),
   defineExercise('Seated Calf Raise', 'Kuiten'),
+  defineExercise('Single-Arm Dumbbell Row', 'Rug', ['Biceps', 'Schouders']),
+  defineExercise('Smith Machine Bench Press', 'Borst', ['Schouders', 'Triceps']),
   defineExercise('Overhead Triceps Extension', 'Triceps', ['Schouders']),
   defineExercise('Seated Cable Row', 'Rug', ['Biceps', 'Schouders']),
+  defineExercise('Standing Calf Raise', 'Kuiten'),
+  defineExercise('Step-Up', 'Quadriceps', ['Bilspieren', 'Hamstrings']),
   defineExercise('Squat', 'Quadriceps', ['Bilspieren', 'Hamstrings']),
   defineExercise('Straight-Arm Pulldown', 'Rug', ['Triceps']),
+  defineExercise('T-Bar Row', 'Rug', ['Biceps', 'Schouders']),
   defineExercise('Triceps Dip', 'Triceps', ['Borst', 'Schouders']),
   defineExercise('Triceps Skull Crusher', 'Triceps'),
   defineExercise('Triceps Pushdown', 'Triceps'),
+  defineExercise('Upright Row', 'Schouders', ['Trapezius']),
   defineExercise('Walking Lunge', 'Quadriceps', ['Bilspieren', 'Hamstrings']),
 ]
 
@@ -1306,7 +1337,7 @@ function getMuscleRecovery(
             ? Math.min(10, parsedRpe)
             : 8
         const effort = rpe / 10
-        const primaryFatigue = 8 * effort * recoveryRemaining
+        const primaryFatigue = 3.5 * effort * recoveryRemaining
         fatigueByMuscle.set(
           primaryGroup,
           (fatigueByMuscle.get(primaryGroup) ?? 0) + primaryFatigue,
@@ -1314,7 +1345,7 @@ function getMuscleRecovery(
 
         secondaryGroups.forEach((group) => {
           if (group === primaryGroup) return
-          const secondaryFatigue = 4 * effort * recoveryRemaining
+          const secondaryFatigue = 1.75 * effort * recoveryRemaining
           fatigueByMuscle.set(
             group,
             (fatigueByMuscle.get(group) ?? 0) + secondaryFatigue,
@@ -1353,8 +1384,8 @@ function getMuscleRecovery(
 }
 
 function getRecoveryColor(percentage: number) {
-  const clampedPercentage = Math.min(100, Math.max(60, percentage))
-  const hue = ((clampedPercentage - 60) / 40) * 120
+  const clampedPercentage = Math.min(100, Math.max(0, percentage))
+  const hue = (clampedPercentage / 100) * 120
   return `hsl(${hue} 85% 42%)`
 }
 
@@ -3630,6 +3661,24 @@ function deleteSet(exerciseId: number, setIndex: number) {
   })
 }
 
+function deleteExercise(exerciseId: number) {
+  if (!activeWorkout) return
+
+  setActiveWorkout({
+    ...activeWorkout,
+    exercises: activeWorkout.exercises.filter(
+      (exercise) => exercise.id !== exerciseId,
+    ),
+  })
+  setOpenRestMenuExerciseId(null)
+
+  if (restAfterSet?.exerciseId === exerciseId) {
+    setRestAfterSet(null)
+    setTimerRunning(false)
+    setTimerRemaining(restDuration)
+  }
+}
+
   return (
     <main className="dashboard">
 
@@ -4066,7 +4115,7 @@ function deleteSet(exerciseId: number, setIndex: number) {
     <button
       type="button"
       className="rest-menu-button"
-      aria-label={`Rusttijd instellen voor ${exercise.name}`}
+      aria-label={`Meer opties voor ${exercise.name}`}
       aria-expanded={openRestMenuExerciseId === exercise.id}
       onClick={() =>
         setOpenRestMenuExerciseId((current) =>
@@ -4143,6 +4192,14 @@ function deleteSet(exerciseId: number, setIndex: number) {
         onClick={() => setOpenRestMenuExerciseId(null)}
       >
         Gereed
+      </button>
+
+      <button
+        type="button"
+        className="exercise-delete-button"
+        onClick={() => deleteExercise(exercise.id)}
+      >
+        Oefening verwijderen
       </button>
     </div>
   )}
@@ -4560,28 +4617,31 @@ onTouchEnd={() => {
                 <div className="muscle-recovery-heading">
                   <div className="muscle-recovery-title">
                     <h2>Spierherstel</h2>
-                    <p>Herstelindicatie op basis van RPE over 48 uur.</p>
                   </div>
                   <div className="muscle-recovery-total">
-                    <strong>Totaal spierherstel</strong>
+                    <strong>Gemiddelde score / 100</strong>
                     <div
                       className="muscle-recovery-circle muscle-recovery-average"
                       role="img"
-                      aria-label={`Totaal spierherstel: ${averageMuscleRecovery}%`}
+                      aria-label={`Gemiddelde herstelscore: ${averageMuscleRecovery} van 100`}
                       style={{
                         background: `conic-gradient(${getRecoveryColor(averageMuscleRecovery)} ${averageMuscleRecovery}%, var(--theme-light) 0)`,
                       }}
                     >
-                      <span>{averageMuscleRecovery}%</span>
+                      <span>{averageMuscleRecovery}</span>
                     </div>
                   </div>
                 </div>
                 <div className="muscle-recovery-grid">
                   {muscleRecovery.map(({ muscleGroup, percentage }) => {
                     const recoveryColor = getRecoveryColor(percentage)
-                    const status = percentage >= 60
-                      ? 'trainen aanbevolen'
-                      : 'trainen niet aanbevolen'
+                    const advice = percentage >= 90
+                      ? 'Normale training lijkt prima'
+                      : percentage >= 70
+                        ? 'Train waarschijnlijk; pas zo nodig aan'
+                        : percentage >= 40
+                          ? 'Overweeg lichter of train een andere spiergroep'
+                          : 'Rust deze spier of train een andere spiergroep'
 
                     return (
                       <article
@@ -4591,18 +4651,65 @@ onTouchEnd={() => {
                         <div
                           className="muscle-recovery-circle"
                           role="img"
-                          aria-label={`${muscleGroup}: ${percentage}% hersteld, ${status}`}
+                          aria-label={`${muscleGroup}: indicatieve score ${percentage} van 100. Advies: ${advice}`}
                           style={{
                             background: `conic-gradient(${recoveryColor} ${percentage}%, var(--theme-light) 0)`,
                           }}
                         >
-                          <span>{percentage}%</span>
+                          <span>{percentage}</span>
                         </div>
                         <strong>{muscleGroup}</strong>
+                        <span className="muscle-recovery-advice">{advice}</span>
                       </article>
                     )
                   })}
                 </div>
+                <details className="muscle-recovery-guide">
+                  <summary>Hoe lees ik deze score?</summary>
+                  <div className="muscle-recovery-guide-content">
+                    <p>
+                      De kleur loopt geleidelijk van groen (hogere score), via
+                      geel, naar rood (lagere score). De zones zijn praktische
+                      richtlijnen:
+                    </p>
+                    <div className="muscle-recovery-guide-items">
+                      <div className="muscle-recovery-guide-item">
+                        <span
+                          className="muscle-recovery-guide-dot"
+                          style={{ backgroundColor: getRecoveryColor(100) }}
+                        />
+                        <span><strong>90–100</strong> Trainen lijkt prima</span>
+                      </div>
+                      <div className="muscle-recovery-guide-item">
+                        <span
+                          className="muscle-recovery-guide-dot"
+                          style={{ backgroundColor: getRecoveryColor(80) }}
+                        />
+                        <span><strong>70–89</strong> Train, pas zo nodig aan</span>
+                      </div>
+                      <div className="muscle-recovery-guide-item">
+                        <span
+                          className="muscle-recovery-guide-dot"
+                          style={{ backgroundColor: getRecoveryColor(55) }}
+                        />
+                        <span><strong>40–69</strong> Overweeg lichter</span>
+                      </div>
+                      <div className="muscle-recovery-guide-item">
+                        <span
+                          className="muscle-recovery-guide-dot"
+                          style={{ backgroundColor: getRecoveryColor(20) }}
+                        />
+                        <span><strong>0–39</strong> Rust of train iets anders</span>
+                      </div>
+                    </div>
+                    <p>
+                      Dit is een voorzichtige richtlijn op basis van sets en RPE,
+                      geen gemeten herstel of garantie. De zones zijn niet
+                      wetenschappelijk gevalideerd. Let ook op spierpijn, kracht
+                      en energie; forceer geen training als je je niet goed voelt.
+                    </p>
+                  </div>
+                </details>
               </section>
               <section className="muscle-training-load">
                 <div className="muscle-training-load-heading">
