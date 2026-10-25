@@ -30,6 +30,8 @@ type Exercise = {
 type Workout = {
   id: number
   date: string
+  time?: string
+  endTime?: string
   exercises: Exercise[]
   muscleGroupWorkload?: Record<string, MuscleGroupWorkload>
 }
@@ -39,6 +41,7 @@ type PersistedWorkoutSession = {
   workoutStartedAt: number | null
   isBuildingPreset: boolean
   editingPresetId: number | null
+  editingWorkoutId: number | null
   presetName: string
   presetFolder: string
   presetNewFolder: string
@@ -99,6 +102,10 @@ function loadPersistedWorkoutSession(): PersistedWorkoutSession | null {
       editingPresetId:
         typeof parsed.editingPresetId === 'number'
           ? parsed.editingPresetId
+          : null,
+      editingWorkoutId:
+        typeof parsed.editingWorkoutId === 'number'
+          ? parsed.editingWorkoutId
           : null,
       presetName: typeof parsed.presetName === 'string' ? parsed.presetName : '',
       presetFolder:
@@ -165,6 +172,91 @@ function parseWorkoutDate(value: string) {
   }
 
   return null
+}
+
+function formatWorkoutDate(value: string) {
+  return parseWorkoutDate(value)?.toLocaleDateString('nl-NL') ?? value
+}
+
+function workoutDateInputValue(value: string) {
+  const date = parseWorkoutDate(value)
+  return date ? dateKey(date) : ''
+}
+
+function formatWorkoutTime(date: Date) {
+  return `${date.getHours().toString().padStart(2, '0')}:${date
+    .getMinutes()
+    .toString()
+    .padStart(2, '0')}`
+}
+
+function getWorkoutTime(workout: Workout) {
+  if (workout.time !== undefined) {
+    return workout.time
+  }
+
+  const idTimestamp = Number(workout.id)
+  if (idTimestamp > 1_000_000_000_000) {
+    return formatWorkoutTime(new Date(idTimestamp))
+  }
+
+  return ''
+}
+
+function isValidWorkoutTime(value: string) {
+  const match = value.match(/^(\d{2}):(\d{2})$/)
+  return Boolean(
+    match &&
+      Number(match[1]) < 24 &&
+      Number(match[2]) < 60,
+  )
+}
+
+function getWorkoutDurationMinutes(startTime: string, endTime: string) {
+  if (!isValidWorkoutTime(startTime) || !isValidWorkoutTime(endTime)) {
+    return null
+  }
+
+  const toMinutes = (value: string) => {
+    const [hours, minutes] = value.split(':').map(Number)
+    return hours * 60 + minutes
+  }
+
+  return (toMinutes(endTime) - toMinutes(startTime) + 24 * 60) % (24 * 60)
+}
+
+function formatWorkoutDurationMinutes(duration: number) {
+  const hours = Math.floor(duration / 60)
+  const minutes = duration % 60
+  if (hours === 0) return `${minutes} min`
+  if (minutes === 0) return `${hours} uur`
+  return `${hours} uur ${minutes} min`
+}
+
+function formatWorkoutTimeRange(workout: Workout) {
+  const startTime = getWorkoutTime(workout)
+  if (!isValidWorkoutTime(startTime)) return ''
+  if (!workout.endTime || !isValidWorkoutTime(workout.endTime)) {
+    return startTime
+  }
+
+  const duration = getWorkoutDurationMinutes(startTime, workout.endTime)
+  return `${startTime}–${workout.endTime}${
+    duration === null ? '' : ` · ${formatWorkoutDurationMinutes(duration)}`
+  }`
+}
+
+function getWorkoutSortTimestamp(workout: Workout) {
+  const date = parseWorkoutDate(workout.date)
+  if (!date) return Number(workout.id) || 0
+
+  const time = getWorkoutTime(workout)
+  const [hours, minutes] = time.split(':').map(Number)
+  if (Number.isInteger(hours) && Number.isInteger(minutes)) {
+    date.setHours(hours, minutes, 0, 0)
+  }
+
+  return date.getTime()
 }
 
 function dateKey(date: Date) {
@@ -1355,9 +1447,28 @@ function getMuscleRecovery(
 
   workouts.forEach((workout) => {
     const idTimestamp = Number(workout.id)
-    const dateTimestamp = parseWorkoutDate(workout.date)?.getTime() ?? now
+    const workoutDate = parseWorkoutDate(workout.date)
+    if (workoutDate && workout.endTime && isValidWorkoutTime(workout.endTime)) {
+      const [hours, minutes] = workout.endTime.split(':').map(Number)
+      const startMinutes = getWorkoutTime(workout)
+      const duration = getWorkoutDurationMinutes(startMinutes, workout.endTime)
+      if (
+        duration !== null &&
+        duration > 0 &&
+        startMinutes &&
+        Number(workout.endTime.replace(':', '')) <
+          Number(startMinutes.replace(':', ''))
+      ) {
+        workoutDate.setDate(workoutDate.getDate() + 1)
+      }
+      workoutDate.setHours(hours, minutes, 0, 0)
+    } else if (workoutDate && isValidWorkoutTime(workout.time ?? '')) {
+      const [hours, minutes] = workout.time!.split(':').map(Number)
+      workoutDate.setHours(hours, minutes, 0, 0)
+    }
+    const dateTimestamp = workoutDate?.getTime() ?? now
     const workoutTimestamp =
-      idTimestamp > 1_000_000_000_000 && idTimestamp <= now
+      !workout.time && !workout.endTime && idTimestamp > 1_000_000_000_000 && idTimestamp <= now
         ? idTimestamp
         : dateTimestamp
     const recoveryRemaining = Math.max(
@@ -2528,6 +2639,9 @@ function App() {
   const [editingPresetId, setEditingPresetId] = useState<number | null>(
     savedWorkoutSession?.editingPresetId ?? null,
   )
+  const [editingWorkoutId, setEditingWorkoutId] = useState<number | null>(
+    savedWorkoutSession?.editingWorkoutId ?? null,
+  )
   const [presetName, setPresetName] = useState(
     savedWorkoutSession?.presetName ?? '',
   )
@@ -2665,6 +2779,7 @@ const averageMuscleRecovery = muscleRecovery.length
         workoutStartedAt,
         isBuildingPreset,
         editingPresetId,
+        editingWorkoutId,
         presetName,
         presetFolder,
         presetNewFolder,
@@ -2675,6 +2790,7 @@ const averageMuscleRecovery = muscleRecovery.length
     workoutStartedAt,
     isBuildingPreset,
     editingPresetId,
+    editingWorkoutId,
     presetName,
     presetFolder,
     presetNewFolder,
@@ -3044,7 +3160,7 @@ useEffect(() => {
 
         return [{
           id: workout.id,
-          date: workout.date,
+          date: formatWorkoutDate(workout.date),
           bestWeight: Math.max(...validSets.map((set) => set.weight)),
           bestSet,
           estimatedOneRepMax: getEstimatedOneRepMax(
@@ -3168,12 +3284,14 @@ const personalRecordsByWorkout = useMemo(() => {
     setActiveWorkout({
       id: startedAt,
       date: new Date().toLocaleDateString('nl-NL'),
+      time: formatWorkoutTime(new Date(startedAt)),
       exercises: [],
     })
     setWorkoutStartedAt(startedAt)
     setWorkoutElapsedSeconds(0)
     setIsBuildingPreset(false)
     setEditingPresetId(null)
+    setEditingWorkoutId(null)
     setMessage('')
     setView('training')
   }
@@ -3188,6 +3306,7 @@ const personalRecordsByWorkout = useMemo(() => {
     })
     setIsBuildingPreset(true)
     setEditingPresetId(null)
+    setEditingWorkoutId(null)
     setShowExerciseLibrary(false)
     setPresetName('')
     setPresetFolder('')
@@ -3207,6 +3326,7 @@ const personalRecordsByWorkout = useMemo(() => {
     setActiveWorkout({
       id: startedAt,
       date: new Date().toLocaleDateString('nl-NL'),
+      time: formatWorkoutTime(new Date(startedAt)),
       exercises: preset.exercises.map((exercise) => ({
         ...exercise,
         id: Date.now() + Math.random(),
@@ -3220,7 +3340,36 @@ const personalRecordsByWorkout = useMemo(() => {
     setWorkoutStartedAt(startedAt)
     setWorkoutElapsedSeconds(0)
     setIsBuildingPreset(false)
+    setEditingWorkoutId(null)
     setShowExerciseLibrary(false)
+    setRestAfterSet(null)
+    setTimerRunning(false)
+    setMessage('')
+    setView('training')
+  }
+
+  function editWorkout(workout: Workout) {
+    if (activeWorkout) {
+      setMessage('Sla je huidige training op of annuleer deze voordat je een andere bewerkt.')
+      setView('training')
+      return
+    }
+
+    setActiveWorkout({
+      ...workout,
+      time: getWorkoutTime(workout),
+      exercises: workout.exercises.map((exercise) => ({
+        ...exercise,
+        sets: exercise.sets.map((set) => ({ ...set })),
+      })),
+    })
+    setWorkoutStartedAt(null)
+    setWorkoutElapsedSeconds(0)
+    setIsBuildingPreset(false)
+    setEditingPresetId(null)
+    setEditingWorkoutId(workout.id)
+    setShowExerciseLibrary(false)
+    setShowWorkoutSummary(false)
     setRestAfterSet(null)
     setTimerRunning(false)
     setMessage('')
@@ -3315,6 +3464,7 @@ const personalRecordsByWorkout = useMemo(() => {
       setWorkoutElapsedSeconds(0)
       setIsBuildingPreset(false)
       setEditingPresetId(null)
+      setEditingWorkoutId(null)
       setMessage('Preset bijgewerkt.')
       return
     }
@@ -3325,6 +3475,7 @@ const personalRecordsByWorkout = useMemo(() => {
     setWorkoutElapsedSeconds(0)
     setIsBuildingPreset(false)
     setEditingPresetId(null)
+    setEditingWorkoutId(null)
     setMessage('Preset opgeslagen.')
   }
 
@@ -3347,6 +3498,7 @@ const personalRecordsByWorkout = useMemo(() => {
     setWorkoutElapsedSeconds(0)
     setIsBuildingPreset(true)
     setEditingPresetId(preset.id)
+    setEditingWorkoutId(null)
     setPresetName(preset.name)
     setPresetFolder(preset.folder)
     setPresetNewFolder('')
@@ -3614,14 +3766,38 @@ function toggleSetCompleted(
   function finishWorkout() {
   if (!activeWorkout) return
 
-  if (activeWorkout.exercises.length === 0) {
-    setMessage('Voeg eerst een oefening toe.')
+    const completedWorkout = {
+      ...activeWorkout,
+      endTime:
+        activeWorkout.endTime ||
+        (editingWorkoutId === null ? formatWorkoutTime(new Date()) : ''),
+  }
+
+    if (!parseWorkoutDate(completedWorkout.date)) {
+      setMessage('Kies een geldige trainingsdatum.')
+      return
+    }
+
+    const workoutTime = getWorkoutTime(completedWorkout)
+    if (!isValidWorkoutTime(workoutTime)) {
+      setMessage('Vul een geldige starttijd in 24-uursnotatie in, bijvoorbeeld 18:30.')
     return
   }
 
-  setMessage('')
+    if (!isValidWorkoutTime(completedWorkout.endTime)) {
+      setMessage('Vul een geldige eindtijd in 24-uursnotatie in, bijvoorbeeld 19:45.')
+    return
+  }
+
+    if (completedWorkout.exercises.length === 0) {
+      setMessage('Voeg eerst een oefening toe.')
+      return
+    }
+
+    setMessage('')
+    setActiveWorkout(completedWorkout)
   setSaveAsPreset(false)
-  setSummaryPresetName(`Training ${activeWorkout.date}`)
+  setSummaryPresetName(`Training ${formatWorkoutDate(activeWorkout.date)}`)
   setSummaryPresetFolder('')
   setSummaryPresetNewFolder('')
   setShowWorkoutSummary(true)
@@ -3642,7 +3818,7 @@ function saveWorkoutOnly() {
     saveAsPreset &&
     !storePreset(
       activeWorkout,
-      summaryPresetName || `Training ${activeWorkout.date}`,
+      summaryPresetName || `Training ${formatWorkoutDate(activeWorkout.date)}`,
       summaryPresetFolder === NEW_FOLDER_OPTION
         ? summaryPresetNewFolder.trim()
         : summaryPresetFolder,
@@ -3653,6 +3829,7 @@ function saveWorkoutOnly() {
 
   const savedWorkout: Workout = {
     ...activeWorkout,
+    time: getWorkoutTime(activeWorkout),
     exercises: activeWorkout.exercises.map((exercise) => ({
       ...exercise,
       sets: exercise.sets.map((set) => ({
@@ -3665,25 +3842,49 @@ function saveWorkoutOnly() {
       allExerciseOptions,
     ),
   }
-  setWorkouts((previous) => [savedWorkout, ...previous])
+  if (
+    editingWorkoutId !== null &&
+    !workouts.some((workout) => workout.id === editingWorkoutId)
+  ) {
+    setMessage('Deze training is niet meer gevonden in je geschiedenis.')
+    return
+  }
+  setWorkouts((previous) =>
+    editingWorkoutId === null
+      ? [savedWorkout, ...previous]
+      : previous
+          .map((workout) =>
+            workout.id === editingWorkoutId ? savedWorkout : workout,
+          )
+          .sort(
+            (left, right) =>
+              getWorkoutSortTimestamp(right) - getWorkoutSortTimestamp(left),
+          ),
+  )
   setActiveWorkout(null)
   setWorkoutStartedAt(null)
   setWorkoutElapsedSeconds(0)
   setIsBuildingPreset(false)
+  setEditingWorkoutId(null)
   setSaveAsPreset(false)
   setSummaryPresetFolder('')
   setSummaryPresetNewFolder('')
   setShowWorkoutSummary(false)
   setMessage(
-    saveAsPreset
-      ? 'Training en preset opgeslagen.'
-      : 'Training opgeslagen in je geschiedenis.',
+    editingWorkoutId !== null
+      ? saveAsPreset
+        ? 'Training aangepast en als preset opgeslagen.'
+        : 'Training aangepast in je geschiedenis.'
+      : saveAsPreset
+        ? 'Training en preset opgeslagen.'
+        : 'Training opgeslagen in je geschiedenis.',
   )
   setExpandedWorkout(activeWorkout.id)
   setView('history')
 }
 function getWorkoutSummaryPRs(exercise: Exercise) {
   const previousSets = workouts
+    .filter((workout) => workout.id !== editingWorkoutId)
     .flatMap((workout) =>
       workout.exercises
         .filter((item) => item.name === exercise.name)
@@ -3747,6 +3948,7 @@ function getWorkoutSummaryPRs(exercise: Exercise) {
     )
     setIsBuildingPreset(false)
     setEditingPresetId(null)
+    setEditingWorkoutId(null)
   }
 function deleteSet(exerciseId: number, setIndex: number) {
   if (!activeWorkout) return
@@ -3854,7 +4056,11 @@ function deleteExercise(exerciseId: number) {
         <span className="summary-check">✓</span>
         <div>
           <h2 id="workout-summary-title">Trainingsoverzicht</h2>
-          <p>{activeWorkout.date}</p>
+          <p>
+            {formatWorkoutDate(activeWorkout.date)}
+            {formatWorkoutTimeRange(activeWorkout) &&
+              ` · ${formatWorkoutTimeRange(activeWorkout)}`}
+          </p>
         </div>
       </div>
 
@@ -3959,7 +4165,13 @@ function deleteExercise(exerciseId: number) {
         className="summary-save-button"
         onClick={saveWorkoutOnly}
       >
-        ✓ {saveAsPreset ? 'Training en preset opslaan' : 'Alleen opslaan'}
+        ✓ {saveAsPreset
+          ? editingWorkoutId !== null
+            ? 'Wijzigingen en preset opslaan'
+            : 'Training en preset opslaan'
+          : editingWorkoutId !== null
+            ? 'Wijzigingen opslaan'
+            : 'Alleen opslaan'}
       </button>
 
       <button
@@ -4092,7 +4304,11 @@ function deleteExercise(exerciseId: number) {
       <article className="home-last-workout">
         <div className="home-last-icon">✓</div>
         <div className="home-last-details">
-          <strong>{workouts[0].date}</strong>
+          <strong>
+            {formatWorkoutDate(workouts[0].date)}
+            {formatWorkoutTimeRange(workouts[0]) &&
+              ` · ${formatWorkoutTimeRange(workouts[0])}`}
+          </strong>
           <p>
             {workouts[0].exercises.length} oefeningen ·{' '}
             {workouts[0].exercises.reduce(
@@ -4160,13 +4376,88 @@ function deleteExercise(exerciseId: number) {
           ) : (
             <>
               <h2>
-                {editingPresetId !== null
+                {editingWorkoutId !== null
+                  ? 'Training aanpassen'
+                  : editingPresetId !== null
                   ? 'Preset bewerken'
                   : isBuildingPreset
                     ? 'Nieuw preset maken'
                     : 'Nieuwe training'}
               </h2>
               {!isBuildingPreset && (
+                <div className="workout-date-time">
+                  <label>
+                    Datum
+                    <input
+                      type="date"
+                      aria-label="Trainingsdatum"
+                      value={workoutDateInputValue(activeWorkout.date)}
+                      required
+                      onChange={(event) =>
+                        setActiveWorkout((current) =>
+                          current
+                            ? { ...current, date: event.target.value }
+                            : current,
+                        )
+                      }
+                    />
+                  </label>
+                  <label>
+                    Starttijd (24-uurs)
+                    <input
+                      type="text"
+                      autoComplete="off"
+                      maxLength={5}
+                      placeholder="18:30"
+                      aria-label="Starttijd in 24-uursnotatie"
+                      value={getWorkoutTime(activeWorkout)}
+                      required
+                      onChange={(event) =>
+                        setActiveWorkout((current) =>
+                          current
+                            ? { ...current, time: event.target.value }
+                            : current,
+                        )
+                      }
+                    />
+                  </label>
+                  <label>
+                    Eindtijd (24-uurs)
+                    <input
+                      type="text"
+                      autoComplete="off"
+                      maxLength={5}
+                      placeholder="19:45"
+                      aria-label="Eindtijd in 24-uursnotatie"
+                      value={activeWorkout.endTime ?? ''}
+                      required
+                      onChange={(event) =>
+                        setActiveWorkout((current) =>
+                          current
+                            ? { ...current, endTime: event.target.value }
+                            : current,
+                        )
+                      }
+                    />
+                  </label>
+                </div>
+              )}
+              {!isBuildingPreset && (
+                <p className="workout-duration-preview" aria-live="polite">
+                  {(() => {
+                    const duration = getWorkoutDurationMinutes(
+                      getWorkoutTime(activeWorkout),
+                      activeWorkout.endTime ?? '',
+                    )
+                    return duration === null
+                      ? editingWorkoutId === null
+                        ? 'Eindtijd wordt ingevuld bij afronden.'
+                        : 'Vul start- en eindtijd in als UU:MM.'
+                      : `Duur: ${formatWorkoutDurationMinutes(duration)}`
+                  })()}
+                </p>
+              )}
+              {!isBuildingPreset && editingWorkoutId === null && (
                 <div className="workout-duration" aria-live="off">
                   <span className="workout-duration-dot" aria-hidden="true" />
                   <span>Trainingstijd</span>
@@ -4520,7 +4811,7 @@ onTouchEnd={() => {
                 className="start-button"
                 onClick={isBuildingPreset ? savePresetBuilder : finishWorkout}
               >
-                {editingPresetId !== null
+                {editingWorkoutId !== null || editingPresetId !== null
                   ? 'Wijzigingen opslaan'
                   : isBuildingPreset
                     ? 'Preset opslaan'
@@ -4528,7 +4819,11 @@ onTouchEnd={() => {
               </button>
 
               <button className="cancel-button" onClick={cancelWorkout}>
-                {isBuildingPreset ? 'Preset maken annuleren' : 'Training annuleren'}
+                {isBuildingPreset
+                  ? 'Preset maken annuleren'
+                  : editingWorkoutId !== null
+                    ? 'Bewerken annuleren'
+                    : 'Training annuleren'}
               </button>
             </>
           )}
@@ -4538,7 +4833,9 @@ onTouchEnd={() => {
       {view === 'history' && (
         <section className="history">
           <h2>Trainingsgeschiedenis</h2>
-          <p className="subtitle">Klik op een training om de details te bekijken.</p>
+          <p className="subtitle">
+            Open een training voor details en om de gegevens aan te passen.
+          </p>
 
           {workouts.length === 0 ? (
             <p className="subtitle">Je opgeslagen trainingen verschijnen hier.</p>
@@ -4564,7 +4861,11 @@ onTouchEnd={() => {
                     }
                   >
                     <span className="history-summary-main">
-                      <strong>{workout.date}</strong>
+                      <strong>
+                        {formatWorkoutDate(workout.date)}
+                        {formatWorkoutTimeRange(workout) &&
+                          ` · ${formatWorkoutTimeRange(workout)}`}
+                      </strong>
                       <span className="history-meta">
                         {workout.exercises.length} oefeningen · {setCount} sets
                       </span>
@@ -4579,6 +4880,13 @@ onTouchEnd={() => {
 
                   {isExpanded && (
                     <div className="history-details">
+                      <button
+                        type="button"
+                        className="secondary-button history-edit-button"
+                        onClick={() => editWorkout(workout)}
+                      >
+                        Training aanpassen
+                      </button>
                       {workout.exercises.map((exercise) => (
                         <div className="history-exercise" key={exercise.id}>
                           

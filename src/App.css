@@ -23,6 +23,11 @@
   padding: 0 16px 12px;
 }
 
+.history-edit-button {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
 .history-set-list {
   margin-top: 8px;
 }
@@ -2655,6 +2660,10 @@ button.text-button:hover {
 }
 
 @media (max-width: 600px) {
+  .workout-date-time {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .one-rep-max-inputs {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -3383,6 +3392,33 @@ button.text-button:hover {
   background: var(--theme-light);
   font-size: 0.88rem;
   font-variant-numeric: tabular-nums;
+}
+
+.workout-date-time {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 8px 0 4px;
+  text-align: left;
+}
+
+.workout-date-time label {
+  display: grid;
+  gap: 5px;
+  color: var(--theme-soft-text);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.workout-date-time input {
+  min-width: 0;
+}
+
+.workout-duration-preview {
+  margin: 0 0 8px;
+  color: var(--theme-soft-text);
+  font-size: 0.82rem;
+  text-align: left;
 }
 
 .workout-duration strong {
