@@ -790,6 +790,148 @@ function getValidSets(exercise: Exercise) {
     )
 }
 
+function loadSelectedRecordExercises() {
+  try {
+    const saved = JSON.parse(
+      localStorage.getItem('strongjan-record-exercises') || '[]',
+    ) as unknown
+    return Array.isArray(saved)
+      ? saved
+          .filter((name): name is string => typeof name === 'string')
+          .slice(0, 3)
+      : []
+  } catch {
+    return []
+  }
+}
+
+function PersonalRecordBar({
+  workouts,
+  exerciseOptions,
+  selectedExercises,
+  onSelectExercise,
+}: {
+  workouts: Workout[]
+  exerciseOptions: ExerciseOption[]
+  selectedExercises: string[]
+  onSelectExercise: (index: number, name: string) => void
+}) {
+  const [showExerciseSettings, setShowExerciseSettings] = useState(false)
+  const featuredExercises = [
+    { names: ['Squat'], label: 'Squat' },
+    {
+      names: ['Bench press', 'Barbell Bench Press'],
+      label: 'Bench',
+    },
+    { names: ['Deadlift'], label: 'Deadlift' },
+    ...selectedExercises
+      .filter(Boolean)
+      .map((name) => ({ names: [name], label: name })),
+  ]
+
+  const exerciseResults = featuredExercises.map(({ names, label }) => {
+    const sets = workouts
+      .flatMap((workout) =>
+        workout.exercises
+          .filter((exercise) =>
+            names.some(
+              (name) =>
+                exercise.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
+            ),
+          )
+          .flatMap(getValidSets),
+      )
+    const record = Math.max(0, ...sets.map((set) => set.weight))
+    const predictedOneRepMax = Math.max(
+      0,
+      ...sets.map((set) => getEstimatedOneRepMax(set.weight, set.reps)),
+    )
+
+    return { label, record, predictedOneRepMax }
+  })
+
+  return (
+    <section className="personal-record-bar" aria-label="Persoonlijke records">
+      <div className="personal-record-heading">
+        <div>
+          <h2>Records &amp; voorspelde 1RM</h2>
+          <p>Op basis van je zwaarste geregistreerde sets.</p>
+        </div>
+        <button
+          type="button"
+          className="personal-record-menu-button"
+          aria-label="Kies extra oefeningen"
+          aria-expanded={showExerciseSettings}
+          onClick={() => setShowExerciseSettings((visible) => !visible)}
+        >
+          ⋮
+        </button>
+      </div>
+      <div className="personal-record-cards">
+        {exerciseResults.map((result, index) => (
+          <article className="personal-record-card" key={`${result.label}-${index}`}>
+            <strong className="personal-record-exercise">{result.label}</strong>
+            <span>Record</span>
+            <strong>
+              {result.record > 0
+                ? `${result.record.toLocaleString('nl-NL')} kg`
+                : '—'}
+            </strong>
+            <span>Voorspelde 1RM</span>
+            <strong>
+              {result.predictedOneRepMax > 0
+                ? `${result.predictedOneRepMax.toLocaleString('nl-NL', {
+                    maximumFractionDigits: 1,
+                  })} kg`
+                : '—'}
+            </strong>
+          </article>
+        ))}
+      </div>
+      {showExerciseSettings && (
+        <div className="personal-record-selectors">
+          {[0, 1, 2].map((index) => {
+            const selectedName = selectedExercises[index] ?? ''
+            return (
+              <label key={index}>
+                Extra oefening {index + 1}
+                <select
+                  aria-label={`Kies extra recordoefening ${index + 1}`}
+                  value={selectedName}
+                  onChange={(event) =>
+                    onSelectExercise(index, event.target.value)
+                  }
+                >
+                  <option value="">Oefening kiezen</option>
+                  {exerciseOptions
+                    .filter(
+                      (exercise) =>
+                        ![
+                          'squat',
+                          'bench press',
+                          'barbell bench press',
+                          'deadlift',
+                        ].includes(exercise.name.toLocaleLowerCase()) &&
+                        !selectedExercises.some(
+                          (name, selectedIndex) =>
+                            selectedIndex !== index && name === exercise.name,
+                        ),
+                    )
+                    .map((exercise) => (
+                      <option key={exercise.name} value={exercise.name}>
+                        {exercise.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+}
+
 type CloudFitnessData = {
   workouts: Workout[]
   presets: WorkoutPreset[]
@@ -1812,13 +1954,217 @@ function MuscleLoadVisualizations({
   )
 }
 
+function ExerciseLibraryExerciseDetails({
+  exercise,
+  workouts,
+  onBack,
+}: {
+  exercise: ExerciseOption
+  workouts: Workout[]
+  onBack: () => void
+}) {
+  const [selectedMetric, setSelectedMetric] = useState<Metric>('weight')
+  const exerciseWorkouts = workouts
+    .map((workout) => {
+      const matchingExercises = workout.exercises.filter(
+        (item) => item.name === exercise.name,
+      )
+      const sets = matchingExercises
+        .flatMap((item) =>
+          item.sets.map((set) => ({
+            reps: Number(set.reps),
+            weight: Number(set.weight),
+          })),
+        )
+        .filter(
+          (set) =>
+            Number.isFinite(set.reps) &&
+            set.reps > 0 &&
+            Number.isFinite(set.weight) &&
+            set.weight >= 0,
+        )
+      if (sets.length === 0) return null
+
+      return {
+        workout,
+        sets,
+        reps: sets.reduce((total, set) => total + set.reps, 0),
+        volume: sets.reduce(
+          (total, set) => total + set.reps * set.weight,
+          0,
+        ),
+        topWeight: Math.max(...sets.map((set) => set.weight)),
+      }
+    })
+    .filter(
+      (
+        entry,
+      ): entry is {
+        workout: Workout
+        sets: ReturnType<typeof getValidSets>
+        reps: number
+        volume: number
+        topWeight: number
+      } => entry !== null,
+    )
+    .sort(
+      (left, right) =>
+        getWorkoutSortTimestamp(left.workout) -
+        getWorkoutSortTimestamp(right.workout),
+    )
+  const totalSets = exerciseWorkouts.reduce(
+    (total, entry) => total + entry.sets.length,
+    0,
+  )
+  const totalReps = exerciseWorkouts.reduce(
+    (total, entry) => total + entry.reps,
+    0,
+  )
+  const totalVolume = exerciseWorkouts.reduce(
+    (total, entry) => total + entry.volume,
+    0,
+  )
+  const bestWeight = Math.max(
+    0,
+    ...exerciseWorkouts.map((entry) => entry.topWeight),
+  )
+  const bestEstimatedOneRepMax = Math.max(
+    0,
+    ...exerciseWorkouts.flatMap((entry) =>
+      entry.sets.map((set) => getEstimatedOneRepMax(set.weight, set.reps)),
+    ),
+  )
+  const lastWorkout = exerciseWorkouts.at(-1)
+
+  return (
+    <section className="exercise-detail">
+      <div className="exercise-detail-heading">
+        <div>
+          <h3>{exercise.name}</h3>
+          <p>Hoofdspiergroep: {exercise.muscleGroup}</p>
+          <p>
+            Subgroep(en):{' '}
+            {exercise.secondaryMuscleGroups?.length
+              ? exercise.secondaryMuscleGroups.join(', ')
+              : 'Geen geregistreerd'}
+          </p>
+        </div>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={onBack}
+        >
+          Terug naar oefeningen
+        </button>
+      </div>
+
+      {exerciseWorkouts.length === 0 ? (
+        <p className="subtitle">
+          Er zijn nog geen werksets met gewicht voor deze oefening. Log een
+          training om je statistieken te zien.
+        </p>
+      ) : (
+        <>
+          <div className="exercise-fun-facts">
+            <article className="stat-card">
+              <p>Werksets</p>
+              <strong>{totalSets}</strong>
+            </article>
+            <article className="stat-card">
+              <p>Hoeveel trainingen</p>
+              <strong>{exerciseWorkouts.length}</strong>
+            </article>
+            <article className="stat-card">
+              <p>Totaal herhalingen</p>
+              <strong>{totalReps.toLocaleString('nl-NL')}</strong>
+            </article>
+            <article className="stat-card">
+              <p>Totaal volume</p>
+              <strong>{totalVolume.toLocaleString('nl-NL')} kg</strong>
+            </article>
+            <article className="stat-card">
+              <p>Zwaarste werkgewicht</p>
+              <strong>{bestWeight.toLocaleString('nl-NL')} kg</strong>
+            </article>
+            <article className="stat-card">
+              <p>Beste geschatte 1RM</p>
+              <strong>
+                {bestEstimatedOneRepMax.toLocaleString('nl-NL', {
+                  maximumFractionDigits: 1,
+                })}{' '}
+                kg
+              </strong>
+            </article>
+          </div>
+
+          {lastWorkout && (
+            <p className="exercise-detail-last-workout">
+              Laatst gedaan: {formatWorkoutDate(lastWorkout.workout.date)}
+              {formatWorkoutTimeRange(lastWorkout.workout) &&
+                ` · ${formatWorkoutTimeRange(lastWorkout.workout)}`}
+            </p>
+          )}
+
+          <article className="history-card chart-card">
+            <h3>
+              {selectedMetric === 'weight'
+                ? 'Progressie zwaarste werkgewicht'
+                : selectedMetric === 'oneRepMax'
+                  ? 'Geschatte 1RM'
+                  : 'Trainingsvolume'}
+            </h3>
+            <label htmlFor="exercise-detail-chart-metric">
+              Toon in grafiek
+            </label>
+            <select
+              id="exercise-detail-chart-metric"
+              value={selectedMetric}
+              onChange={(event) =>
+                setSelectedMetric(event.target.value as Metric)
+              }
+            >
+              <option value="oneRepMax">Geschatte 1RM (kg)</option>
+              <option value="weight">Zwaarste werkgewicht (kg)</option>
+              <option value="volume">Volume (kg × herhalingen)</option>
+            </select>
+            <ProgressChart
+              ariaLabel={`${
+                selectedMetric === 'weight'
+                  ? 'Progressie zwaarste werkgewicht'
+                  : selectedMetric === 'oneRepMax'
+                    ? 'Geschatte 1RM'
+                    : 'Trainingsvolume'
+              } voor ${exercise.name}`}
+              entries={exerciseWorkouts.map((entry) => ({
+                date: formatWorkoutDate(entry.workout.date),
+                value:
+                  selectedMetric === 'weight'
+                    ? entry.topWeight
+                    : selectedMetric === 'oneRepMax'
+                      ? Math.max(
+                          ...entry.sets.map((set) =>
+                            getEstimatedOneRepMax(set.weight, set.reps),
+                          ),
+                        )
+                      : entry.volume,
+              }))}
+            />
+          </article>
+        </>
+      )}
+    </section>
+  )
+}
+
 function ExerciseLibraryPanel({
   exercises,
+  workouts,
   onSelect,
   onBack,
   onAddExercise,
 }: {
   exercises: ExerciseOption[]
+  workouts: Workout[]
   onSelect?: (exerciseName: string) => void
   onBack: () => void
   onAddExercise: (
@@ -1835,7 +2181,7 @@ function ExerciseLibraryPanel({
   const [newExerciseGroup, setNewExerciseGroup] = useState('Borst')
   const [newExerciseSecondaryGroups, setNewExerciseSecondaryGroups] =
     useState<string[]>([])
-  const [expandedExerciseName, setExpandedExerciseName] = useState<string | null>(
+  const [selectedExerciseName, setSelectedExerciseName] = useState<string | null>(
     null,
   )
   const [formError, setFormError] = useState('')
@@ -1853,6 +2199,27 @@ function ExerciseLibraryPanel({
         selectedGroup === 'Alle' || exercise.muscleGroup === selectedGroup,
     )
     .sort((left, right) => left.name.localeCompare(right.name))
+  const selectedExercise = exercises.find(
+    (exercise) => exercise.name === selectedExerciseName,
+  )
+
+  if (!onSelect && selectedExercise) {
+    return (
+      <div className="exercise-library">
+        <div className="exercise-library-heading">
+          <button type="button" className="secondary-button" onClick={onBack}>
+            ← Terug
+          </button>
+          <h2>Oefeningdetails</h2>
+        </div>
+        <ExerciseLibraryExerciseDetails
+          exercise={selectedExercise}
+          workouts={workouts}
+          onBack={() => setSelectedExerciseName(null)}
+        />
+      </div>
+    )
+  }
 
   function submitExercise(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -2012,35 +2379,17 @@ function ExerciseLibraryPanel({
               <button
                 type="button"
                 className="library-exercise"
-                aria-expanded={
-                  onSelect ? undefined : expandedExerciseName === exercise.name
-                }
                 onClick={() => {
                   if (onSelect) {
                     onSelect(exercise.name)
                   } else {
-                    setExpandedExerciseName((current) =>
-                      current === exercise.name ? null : exercise.name,
-                    )
+                    setSelectedExerciseName(exercise.name)
                   }
                 }}
               >
                 <span>{exercise.name}</span>
-                <span>{exercise.muscleGroup}{onSelect ? '　＋' : '　⌄'}</span>
+                <span>{exercise.muscleGroup}{onSelect ? '　＋' : '　→'}</span>
               </button>
-              {!onSelect && expandedExerciseName === exercise.name && (
-                <div className="exercise-muscle-details">
-                  <p>
-                    <strong>Hoofdspiergroep:</strong> {exercise.muscleGroup}
-                  </p>
-                  <p>
-                    <strong>Subspiergroepen:</strong>{' '}
-                    {exercise.secondaryMuscleGroups?.length
-                      ? exercise.secondaryMuscleGroups.join(', ')
-                      : 'Geen geregistreerd'}
-                  </p>
-                </div>
-              )}
             </Fragment>
           )
         })}
@@ -2664,6 +3013,9 @@ function App() {
     'overview' | 'exercise' | 'measurements' | 'settings'
   >('overview')
   const [selectedExercise, setSelectedExercise] = useState('')
+  const [selectedRecordExercises, setSelectedRecordExercises] = useState(
+    loadSelectedRecordExercises,
+  )
   const [progressExerciseSearch, setProgressExerciseSearch] = useState('')
   const [progressMuscleGroup, setProgressMuscleGroup] = useState('Alle')
   const [showProgressExercisePicker, setShowProgressExercisePicker] =
@@ -2765,6 +3117,13 @@ const averageMuscleRecovery = muscleRecovery.length
   useEffect(() => {
     localStorage.setItem('fitnessai-workouts', JSON.stringify(workouts))
   }, [workouts])
+
+  useEffect(() => {
+    localStorage.setItem(
+      'strongjan-record-exercises',
+      JSON.stringify(selectedRecordExercises),
+    )
+  }, [selectedRecordExercises])
 
   useEffect(() => {
     if (!activeWorkout) {
@@ -3987,6 +4346,14 @@ function deleteExercise(exerciseId: number) {
   }
 }
 
+function updateSelectedRecordExercise(index: number, name: string) {
+  setSelectedRecordExercises((current) => {
+    const next = Array.from({ length: 3 }, (_, slot) => current[slot] ?? '')
+    next[index] = name
+    return next
+  })
+}
+
   return (
     <main className="dashboard">
 
@@ -4279,6 +4646,13 @@ function deleteExercise(exerciseId: number) {
       </article>
     </div>
 
+    <PersonalRecordBar
+      workouts={workouts}
+      exerciseOptions={allExerciseOptions}
+      selectedExercises={selectedRecordExercises}
+      onSelectExercise={updateSelectedRecordExercise}
+    />
+
     <div className="home-section-heading">
       <div>
         <h2>Laatste training</h2>
@@ -4343,6 +4717,7 @@ function deleteExercise(exerciseId: number) {
           {!activeWorkout && manageExerciseLibrary ? (
             <ExerciseLibraryPanel
               exercises={allExerciseOptions}
+              workouts={workouts}
               onBack={() => setManageExerciseLibrary(false)}
               onAddExercise={addCustomExercise}
             />
@@ -4406,13 +4781,11 @@ function deleteExercise(exerciseId: number) {
                     />
                   </label>
                   <label>
-                    Starttijd (24-uurs)
+                    Starttijd
                     <input
-                      type="text"
-                      autoComplete="off"
-                      maxLength={5}
-                      placeholder="18:30"
-                      aria-label="Starttijd in 24-uursnotatie"
+                      type="time"
+                      step="60"
+                      aria-label="Starttijd"
                       value={getWorkoutTime(activeWorkout)}
                       required
                       onChange={(event) =>
@@ -4425,13 +4798,11 @@ function deleteExercise(exerciseId: number) {
                     />
                   </label>
                   <label>
-                    Eindtijd (24-uurs)
+                    Eindtijd
                     <input
-                      type="text"
-                      autoComplete="off"
-                      maxLength={5}
-                      placeholder="19:45"
-                      aria-label="Eindtijd in 24-uursnotatie"
+                      type="time"
+                      step="60"
+                      aria-label="Eindtijd"
                       value={activeWorkout.endTime ?? ''}
                       required
                       onChange={(event) =>
@@ -4496,6 +4867,7 @@ function deleteExercise(exerciseId: number) {
               {showExerciseLibrary && (
                 <ExerciseLibraryPanel
                   exercises={allExerciseOptions}
+                  workouts={workouts}
                   onSelect={addExercise}
                   onBack={() => setShowExerciseLibrary(false)}
                   onAddExercise={addCustomExercise}
@@ -5162,6 +5534,12 @@ onTouchEnd={() => {
                   />
                 )}
               </section>
+              <PersonalRecordBar
+                workouts={workouts}
+                exerciseOptions={allExerciseOptions}
+                selectedExercises={selectedRecordExercises}
+                onSelectExercise={updateSelectedRecordExercise}
+              />
             </section>
           )}
 
