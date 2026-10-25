@@ -34,6 +34,16 @@ type Workout = {
   muscleGroupWorkload?: Record<string, MuscleGroupWorkload>
 }
 
+type PersistedWorkoutSession = {
+  activeWorkout: Workout
+  workoutStartedAt: number | null
+  isBuildingPreset: boolean
+  editingPresetId: number | null
+  presetName: string
+  presetFolder: string
+  presetNewFolder: string
+}
+
 type MuscleGroupWorkload = {
   primarySets: number
   primaryReps: number
@@ -63,6 +73,45 @@ type WorkoutPreset = {
 }
 
 const NEW_FOLDER_OPTION = '__new_folder__'
+const ACTIVE_WORKOUT_STORAGE_KEY = 'strongjan-active-workout'
+
+function loadPersistedWorkoutSession(): PersistedWorkoutSession | null {
+  try {
+    const savedSession = localStorage.getItem(ACTIVE_WORKOUT_STORAGE_KEY)
+    if (!savedSession) return null
+
+    const parsed = JSON.parse(savedSession) as Partial<PersistedWorkoutSession>
+    if (
+      !parsed.activeWorkout ||
+      typeof parsed.activeWorkout !== 'object' ||
+      !Array.isArray(parsed.activeWorkout.exercises)
+    ) {
+      return null
+    }
+
+    return {
+      activeWorkout: parsed.activeWorkout,
+      workoutStartedAt:
+        typeof parsed.workoutStartedAt === 'number'
+          ? parsed.workoutStartedAt
+          : null,
+      isBuildingPreset: Boolean(parsed.isBuildingPreset),
+      editingPresetId:
+        typeof parsed.editingPresetId === 'number'
+          ? parsed.editingPresetId
+          : null,
+      presetName: typeof parsed.presetName === 'string' ? parsed.presetName : '',
+      presetFolder:
+        typeof parsed.presetFolder === 'string' ? parsed.presetFolder : '',
+      presetNewFolder:
+        typeof parsed.presetNewFolder === 'string'
+          ? parsed.presetNewFolder
+          : '',
+    }
+  } catch {
+    return null
+  }
+}
 
 type View = 'home' | 'training' | 'history' | 'progress'
 type Metric = 'weight' | 'oneRepMax' | 'volume'
@@ -1281,6 +1330,7 @@ function getMuscleRecovery(
         ? ''
         : muscleGroup
   const recoveryHours = 48
+  const maxEffortSetsToZeroScore = 10
   const muscleGroups = new Set(
     exerciseMuscleGroupOptions.map(normalizeMuscleGroup),
   )
@@ -1337,7 +1387,8 @@ function getMuscleRecovery(
             ? Math.min(10, parsedRpe)
             : 8
         const effort = rpe / 10
-        const primaryFatigue = 3.5 * effort * recoveryRemaining
+        const primaryFatigue =
+          (100 / maxEffortSetsToZeroScore) * effort * recoveryRemaining
         fatigueByMuscle.set(
           primaryGroup,
           (fatigueByMuscle.get(primaryGroup) ?? 0) + primaryFatigue,
@@ -1345,7 +1396,7 @@ function getMuscleRecovery(
 
         secondaryGroups.forEach((group) => {
           if (group === primaryGroup) return
-          const secondaryFatigue = 1.75 * effort * recoveryRemaining
+          const secondaryFatigue = primaryFatigue * 0.5
           fatigueByMuscle.set(
             group,
             (fatigueByMuscle.get(group) ?? 0) + secondaryFatigue,
@@ -2455,22 +2506,46 @@ function App() {
       )]
     }
   })
-  const [activeWorkout, setActiveWorkout] = useState<Workout | null>(null)
-  const [workoutStartedAt, setWorkoutStartedAt] = useState<number | null>(null)
-  const [workoutElapsedSeconds, setWorkoutElapsedSeconds] = useState(0)
+  const [savedWorkoutSession] = useState(loadPersistedWorkoutSession)
+  const [activeWorkout, setActiveWorkout] = useState<Workout | null>(
+    savedWorkoutSession?.activeWorkout ?? null,
+  )
+  const [workoutStartedAt, setWorkoutStartedAt] = useState<number | null>(
+    savedWorkoutSession?.workoutStartedAt ?? null,
+  )
+  const [workoutElapsedSeconds, setWorkoutElapsedSeconds] = useState(() =>
+    savedWorkoutSession?.workoutStartedAt && !savedWorkoutSession.isBuildingPreset
+      ? Math.max(
+          0,
+          Math.floor((Date.now() - savedWorkoutSession.workoutStartedAt) / 1000),
+        )
+      : 0,
+  )
   const [showWorkoutSummary, setShowWorkoutSummary] = useState(false)
-  const [isBuildingPreset, setIsBuildingPreset] = useState(false)
-  const [editingPresetId, setEditingPresetId] = useState<number | null>(null)
-  const [presetName, setPresetName] = useState('')
-  const [presetFolder, setPresetFolder] = useState('')
-  const [presetNewFolder, setPresetNewFolder] = useState('')
+  const [isBuildingPreset, setIsBuildingPreset] = useState(
+    savedWorkoutSession?.isBuildingPreset ?? false,
+  )
+  const [editingPresetId, setEditingPresetId] = useState<number | null>(
+    savedWorkoutSession?.editingPresetId ?? null,
+  )
+  const [presetName, setPresetName] = useState(
+    savedWorkoutSession?.presetName ?? '',
+  )
+  const [presetFolder, setPresetFolder] = useState(
+    savedWorkoutSession?.presetFolder ?? '',
+  )
+  const [presetNewFolder, setPresetNewFolder] = useState(
+    savedWorkoutSession?.presetNewFolder ?? '',
+  )
   const [saveAsPreset, setSaveAsPreset] = useState(false)
   const [summaryPresetName, setSummaryPresetName] = useState('')
   const [summaryPresetFolder, setSummaryPresetFolder] = useState('')
   const [summaryPresetNewFolder, setSummaryPresetNewFolder] = useState('')
   const [exerciseName, setExerciseName] = useState('Bench press')
   const [message, setMessage] = useState('')
-  const [view, setView] = useState<View>('home')
+  const [view, setView] = useState<View>(() =>
+    activeWorkout ? 'training' : 'home',
+  )
   const [selfSection, setSelfSection] = useState<
     'overview' | 'exercise' | 'measurements' | 'settings'
   >('overview')
@@ -2576,6 +2651,34 @@ const averageMuscleRecovery = muscleRecovery.length
   useEffect(() => {
     localStorage.setItem('fitnessai-workouts', JSON.stringify(workouts))
   }, [workouts])
+
+  useEffect(() => {
+    if (!activeWorkout) {
+      localStorage.removeItem(ACTIVE_WORKOUT_STORAGE_KEY)
+      return
+    }
+
+    localStorage.setItem(
+      ACTIVE_WORKOUT_STORAGE_KEY,
+      JSON.stringify({
+        activeWorkout,
+        workoutStartedAt,
+        isBuildingPreset,
+        editingPresetId,
+        presetName,
+        presetFolder,
+        presetNewFolder,
+      } satisfies PersistedWorkoutSession),
+    )
+  }, [
+    activeWorkout,
+    workoutStartedAt,
+    isBuildingPreset,
+    editingPresetId,
+    presetName,
+    presetFolder,
+    presetNewFolder,
+  ])
 
   useEffect(() => {
     localStorage.setItem(
