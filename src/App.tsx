@@ -798,7 +798,6 @@ function loadSelectedRecordExercises() {
     return Array.isArray(saved)
       ? saved
           .filter((name): name is string => typeof name === 'string')
-          .slice(0, 3)
       : []
   } catch {
     return []
@@ -809,25 +808,30 @@ function PersonalRecordBar({
   workouts,
   exerciseOptions,
   selectedExercises,
-  onSelectExercise,
+  onAddExercise,
+  onRemoveExercise,
 }: {
   workouts: Workout[]
   exerciseOptions: ExerciseOption[]
   selectedExercises: string[]
-  onSelectExercise: (index: number, name: string) => void
+  onAddExercise: (name: string) => void
+  onRemoveExercise: (name: string) => void
 }) {
   const [showExerciseSettings, setShowExerciseSettings] = useState(false)
-  const featuredExercises = [
-    { names: ['Squat'], label: 'Squat' },
-    {
-      names: ['Bench press', 'Barbell Bench Press'],
-      label: 'Bench',
-    },
-    { names: ['Deadlift'], label: 'Deadlift' },
-    ...selectedExercises
-      .filter(Boolean)
-      .map((name) => ({ names: [name], label: name })),
-  ]
+  const [exerciseSearch, setExerciseSearch] = useState('')
+  const featuredExercises = selectedExercises.map((name) => ({
+    names: [name],
+    label: name,
+  }))
+  const availableExercises = exerciseOptions
+    .filter(
+      (exercise) =>
+        !selectedExercises.includes(exercise.name) &&
+        exercise.name
+          .toLocaleLowerCase()
+          .includes(exerciseSearch.toLocaleLowerCase().trim()),
+    )
+    .sort((left, right) => left.name.localeCompare(right.name))
 
   const exerciseResults = featuredExercises.map(({ names, label }) => {
     const sets = workouts
@@ -860,7 +864,7 @@ function PersonalRecordBar({
         <button
           type="button"
           className="personal-record-menu-button"
-          aria-label="Kies extra oefeningen"
+          aria-label="Oefeningen kiezen"
           aria-expanded={showExerciseSettings}
           onClick={() => setShowExerciseSettings((visible) => !visible)}
         >
@@ -868,8 +872,8 @@ function PersonalRecordBar({
         </button>
       </div>
       <div className="personal-record-cards">
-        {exerciseResults.map((result, index) => (
-          <article className="personal-record-card" key={`${result.label}-${index}`}>
+        {exerciseResults.map((result) => (
+          <article className="personal-record-card" key={result.label}>
             <strong className="personal-record-exercise">{result.label}</strong>
             <span>Record</span>
             <strong>
@@ -887,45 +891,56 @@ function PersonalRecordBar({
             </strong>
           </article>
         ))}
+        {exerciseResults.length === 0 && (
+          <p className="personal-record-empty">
+            Kies oefeningen via ⋮ om je records hier te zien.
+          </p>
+        )}
       </div>
       {showExerciseSettings && (
         <div className="personal-record-selectors">
-          {[0, 1, 2].map((index) => {
-            const selectedName = selectedExercises[index] ?? ''
-            return (
-              <label key={index}>
-                Extra oefening {index + 1}
-                <select
-                  aria-label={`Kies extra recordoefening ${index + 1}`}
-                  value={selectedName}
-                  onChange={(event) =>
-                    onSelectExercise(index, event.target.value)
-                  }
-                >
-                  <option value="">Oefening kiezen</option>
-                  {exerciseOptions
-                    .filter(
-                      (exercise) =>
-                        ![
-                          'squat',
-                          'bench press',
-                          'barbell bench press',
-                          'deadlift',
-                        ].includes(exercise.name.toLocaleLowerCase()) &&
-                        !selectedExercises.some(
-                          (name, selectedIndex) =>
-                            selectedIndex !== index && name === exercise.name,
-                        ),
-                    )
-                    .map((exercise) => (
-                      <option key={exercise.name} value={exercise.name}>
-                        {exercise.name}
-                      </option>
-                    ))}
-                </select>
-              </label>
-            )
-          })}
+          <div className="personal-record-selected-exercises">
+            {selectedExercises.map((name) => (
+              <button
+                type="button"
+                className="personal-record-selected-exercise"
+                key={name}
+                onClick={() => onRemoveExercise(name)}
+                aria-label={`Verwijder ${name} uit je records`}
+              >
+                {name} <span aria-hidden="true">×</span>
+              </button>
+            ))}
+          </div>
+          <label>
+            Oefening zoeken
+            <input
+              type="search"
+              aria-label="Zoek een oefening om toe te voegen"
+              placeholder="Typ een oefening..."
+              value={exerciseSearch}
+              onChange={(event) => setExerciseSearch(event.target.value)}
+            />
+          </label>
+          <div className="personal-record-exercise-options">
+            {availableExercises.map((exercise) => (
+              <button
+                type="button"
+                key={exercise.name}
+                onClick={() => onAddExercise(exercise.name)}
+              >
+                {exercise.name}
+                <span aria-hidden="true">＋</span>
+              </button>
+            ))}
+            {availableExercises.length === 0 && (
+              <p>
+                {exerciseSearch
+                  ? 'Geen oefeningen gevonden.'
+                  : 'Je hebt alle beschikbare oefeningen toegevoegd.'}
+              </p>
+            )}
+          </div>
         </div>
       )}
     </section>
@@ -4346,12 +4361,16 @@ function deleteExercise(exerciseId: number) {
   }
 }
 
-function updateSelectedRecordExercise(index: number, name: string) {
-  setSelectedRecordExercises((current) => {
-    const next = Array.from({ length: 3 }, (_, slot) => current[slot] ?? '')
-    next[index] = name
-    return next
-  })
+function addSelectedRecordExercise(name: string) {
+  setSelectedRecordExercises((current) =>
+    current.includes(name) ? current : [...current, name],
+  )
+}
+
+function removeSelectedRecordExercise(name: string) {
+  setSelectedRecordExercises((current) =>
+    current.filter((exercise) => exercise !== name),
+  )
 }
 
   return (
@@ -4650,7 +4669,8 @@ function updateSelectedRecordExercise(index: number, name: string) {
       workouts={workouts}
       exerciseOptions={allExerciseOptions}
       selectedExercises={selectedRecordExercises}
-      onSelectExercise={updateSelectedRecordExercise}
+      onAddExercise={addSelectedRecordExercise}
+      onRemoveExercise={removeSelectedRecordExercise}
     />
 
     <div className="home-section-heading">
@@ -5538,7 +5558,8 @@ onTouchEnd={() => {
                 workouts={workouts}
                 exerciseOptions={allExerciseOptions}
                 selectedExercises={selectedRecordExercises}
-                onSelectExercise={updateSelectedRecordExercise}
+                onAddExercise={addSelectedRecordExercise}
+                onRemoveExercise={removeSelectedRecordExercise}
               />
             </section>
           )}
