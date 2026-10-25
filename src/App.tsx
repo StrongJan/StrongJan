@@ -29,6 +29,7 @@ type Exercise = {
 
 type Workout = {
   id: number
+  name?: string
   date: string
   time?: string
   endTime?: string
@@ -4206,6 +4207,7 @@ function saveWorkoutOnly() {
 
   const savedWorkout: Workout = {
     ...activeWorkout,
+    name: activeWorkout.name?.trim() || undefined,
     time: getWorkoutTime(activeWorkout),
     exercises: activeWorkout.exercises.map((exercise) => ({
       ...exercise,
@@ -4444,7 +4446,9 @@ function removeSelectedRecordExercise(name: string) {
       <div className="summary-heading">
         <span className="summary-check">✓</span>
         <div>
-          <h2 id="workout-summary-title">Trainingsoverzicht</h2>
+          <h2 id="workout-summary-title">
+            {activeWorkout.name?.trim() || 'Trainingsoverzicht'}
+          </h2>
           <p>
             {formatWorkoutDate(activeWorkout.date)}
             {formatWorkoutTimeRange(activeWorkout) &&
@@ -4702,11 +4706,13 @@ function removeSelectedRecordExercise(name: string) {
         <div className="home-last-icon">✓</div>
         <div className="home-last-details">
           <strong>
-            {formatWorkoutDate(workouts[0].date)}
-            {formatWorkoutTimeRange(workouts[0]) &&
-              ` · ${formatWorkoutTimeRange(workouts[0])}`}
+            {workouts[0].name?.trim() || formatWorkoutDate(workouts[0].date)}
           </strong>
           <p>
+            {workouts[0].name?.trim() &&
+              `${formatWorkoutDate(workouts[0].date)} · `}
+            {formatWorkoutTimeRange(workouts[0]) &&
+              `${formatWorkoutTimeRange(workouts[0])} · `}
             {workouts[0].exercises.length} oefeningen ·{' '}
             {workouts[0].exercises.reduce(
               (total, exercise) => total + exercise.sets.length,
@@ -4782,6 +4788,24 @@ function removeSelectedRecordExercise(name: string) {
                     ? 'Nieuw preset maken'
                     : 'Nieuwe training'}
               </h2>
+              {!isBuildingPreset && (
+                <label className="workout-name-field">
+                  Naam training
+                  <input
+                    type="text"
+                    value={activeWorkout.name ?? ''}
+                    onChange={(event) =>
+                      setActiveWorkout((current) =>
+                        current
+                          ? { ...current, name: event.target.value }
+                          : current,
+                      )
+                    }
+                    placeholder="Bijv. Push day"
+                    maxLength={60}
+                  />
+                </label>
+              )}
               {!isBuildingPreset && (
                 <div className="workout-date-time">
                   <label>
@@ -5256,6 +5280,9 @@ onTouchEnd={() => {
                     }
                   >
                     <span className="history-summary-main">
+                      {workout.name?.trim() && (
+                        <strong>{workout.name}</strong>
+                      )}
                       <strong>
                         {formatWorkoutDate(workout.date)}
                         {formatWorkoutTimeRange(workout) &&
