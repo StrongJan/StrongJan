@@ -3784,10 +3784,13 @@ function toggleSetCompleted(
     return
   }
 
-    if (!isValidWorkoutTime(completedWorkout.endTime)) {
+    if (
+      completedWorkout.endTime &&
+      !isValidWorkoutTime(completedWorkout.endTime)
+    ) {
       setMessage('Vul een geldige eindtijd in 24-uursnotatie in, bijvoorbeeld 19:45.')
-    return
-  }
+      return
+    }
 
     if (completedWorkout.exercises.length === 0) {
       setMessage('Voeg eerst een oefening toe.')
