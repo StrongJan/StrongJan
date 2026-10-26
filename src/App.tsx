@@ -1,6 +1,7 @@
 
 import {
   Fragment,
+  type ChangeEvent,
   type FormEvent,
   type MouseEvent,
   useEffect,
@@ -136,6 +137,20 @@ type BodyMeasurement = {
   metricId: string
   date: string
   value: number
+}
+
+type PhotoFolder = {
+  id: string
+  name: string
+  createdAt: string
+}
+
+type ProgressPhoto = {
+  id: string
+  folderId: string
+  storagePath: string
+  fileName: string
+  uploadedAt: string
 }
 
 const bodyMetrics: BodyMetric[] = [
@@ -954,7 +969,15 @@ type CloudFitnessData = {
   customExercises: ExerciseOption[]
   presetFolders: string[]
   bodyMeasurements: BodyMeasurement[]
+  photoFolders: PhotoFolder[]
+  progressPhotos: ProgressPhoto[]
 }
+
+type StoredCloudFitnessData = Omit<
+  CloudFitnessData,
+  'photoFolders' | 'progressPhotos'
+> &
+  Partial<Pick<CloudFitnessData, 'photoFolders' | 'progressPhotos'>>
 
 type CloudSyncStatus =
   | 'unavailable'
@@ -968,7 +991,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
-function isCloudFitnessData(value: unknown): value is CloudFitnessData {
+function isCloudFitnessData(value: unknown): value is StoredCloudFitnessData {
   if (!isRecord(value)) return false
 
   return (
@@ -977,8 +1000,18 @@ function isCloudFitnessData(value: unknown): value is CloudFitnessData {
     Array.isArray(value.customExercises) &&
     Array.isArray(value.presetFolders) &&
     value.presetFolders.every((folder) => typeof folder === 'string') &&
-    Array.isArray(value.bodyMeasurements)
+    Array.isArray(value.bodyMeasurements) &&
+    Array.isArray(value.photoFolders ?? []) &&
+    Array.isArray(value.progressPhotos ?? [])
   )
+}
+
+function normalizeCloudFitnessData(value: StoredCloudFitnessData): CloudFitnessData {
+  return {
+    ...value,
+    photoFolders: value.photoFolders ?? [],
+    progressPhotos: value.progressPhotos ?? [],
+  }
 }
 
 function getCloudDataSignature(data: CloudFitnessData) {
@@ -1139,9 +1172,9 @@ function ProfileSettings({
               Uitloggen
             </button>
             <p className="profile-storage-note">
-              Je trainingen, presets, oefeningen en lichaamsmetingen worden
-              voor dit account in Supabase bewaard en tussen apparaten
-              gesynchroniseerd.
+              Je trainingen, presets, oefeningen, lichaamsmetingen en
+              fotomapgegevens worden voor dit account in Supabase bewaard en
+              tussen apparaten gesynchroniseerd. Fotobestanden blijven privé.
             </p>
           </div>
         ) : (
@@ -3030,17 +3063,16 @@ function App() {
     activeWorkout ? 'training' : 'home',
   )
   const [selfSection, setSelfSection] = useState<
-    'overview' | 'exercise' | 'measurements' | 'settings'
+    'overview' | 'exercise' | 'measurements' | 'photos' | 'settings'
   >('overview')
   const [selectedExercise, setSelectedExercise] = useState('')
+  const [showProgressExercisePicker, setShowProgressExercisePicker] =
+    useState(true)
   const [selectedRecordExercises, setSelectedRecordExercises] = useState(
     loadSelectedRecordExercises,
   )
   const [progressExerciseSearch, setProgressExerciseSearch] = useState('')
   const [progressMuscleGroup, setProgressMuscleGroup] = useState('Alle')
-  const [showProgressExercisePicker, setShowProgressExercisePicker] =
-    useState(false)
-  const [showExerciseProgress, setShowExerciseProgress] = useState(true)
   const [selectedMetric, setSelectedMetric] = useState<Metric>('weight')
   const [bodyMeasurements, setBodyMeasurements] = useState<BodyMeasurement[]>(
     () => {
@@ -3053,6 +3085,35 @@ function App() {
       }
     },
   )
+  const [photoFolders, setPhotoFolders] = useState<PhotoFolder[]>(() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem('strongjan-photo-folders') || '[]',
+      ) as PhotoFolder[]
+    } catch {
+      return []
+    }
+  })
+  const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>(() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem('strongjan-progress-photos') || '[]',
+      ) as ProgressPhoto[]
+    } catch {
+      return []
+    }
+  })
+  const [selectedPhotoFolderId, setSelectedPhotoFolderId] = useState<
+    string | null
+  >(null)
+  const [photoFolderName, setPhotoFolderName] = useState('')
+  const [photoUrls, setPhotoUrls] = useState<{
+    userId: string
+    folderId: string
+    urls: Record<string, string>
+  } | null>(null)
+  const [photoError, setPhotoError] = useState('')
+  const [isPhotoBusy, setIsPhotoBusy] = useState(false)
   const [selectedBodyMetric, setSelectedBodyMetric] = useState('weight')
   const [bodyMeasurementDate, setBodyMeasurementDate] = useState(() =>
     dateKey(new Date()),
@@ -3077,8 +3138,18 @@ function App() {
       customExercises,
       presetFolders,
       bodyMeasurements,
+      photoFolders,
+      progressPhotos,
     }),
-    [workouts, presets, customExercises, presetFolders, bodyMeasurements],
+    [
+      workouts,
+      presets,
+      customExercises,
+      presetFolders,
+      bodyMeasurements,
+      photoFolders,
+      progressPhotos,
+    ],
   )
   const currentCloudFitnessData = useRef(cloudFitnessData)
   const [openRestMenuExerciseId, setOpenRestMenuExerciseId] =
@@ -3209,6 +3280,70 @@ const averageMuscleRecovery = muscleRecovery.length
   }, [bodyMeasurements])
 
   useEffect(() => {
+    localStorage.setItem('strongjan-photo-folders', JSON.stringify(photoFolders))
+  }, [photoFolders])
+
+  useEffect(() => {
+    localStorage.setItem(
+      'strongjan-progress-photos',
+      JSON.stringify(progressPhotos),
+    )
+  }, [progressPhotos])
+
+  useEffect(() => {
+    let active = true
+    const client = supabase
+    const photoStorage = client?.storage.from('progress-photos')
+    const folderPhotos = progressPhotos.filter(
+      (photo) => photo.folderId === selectedPhotoFolderId,
+    )
+
+    if (
+      !photoStorage ||
+      !cloudUser ||
+      !selectedPhotoFolderId ||
+      !folderPhotos.length
+    ) {
+      return
+    }
+    const storage = photoStorage
+    const userId = cloudUser.id
+    const folderId = selectedPhotoFolderId
+
+    async function loadPhotoUrls() {
+      const entries = await Promise.all(
+        folderPhotos.map(async (photo) => {
+          const { data, error } = await storage
+            .createSignedUrl(photo.storagePath, 60 * 60)
+          if (error) throw error
+          return [photo.id, data.signedUrl] as const
+        }),
+      )
+
+      if (active) {
+        setPhotoUrls({
+          userId,
+          folderId,
+          urls: Object.fromEntries(entries),
+        })
+      }
+    }
+
+    void loadPhotoUrls().catch((error: unknown) => {
+      if (!active) return
+      setPhotoError(
+        error instanceof Error
+          ? error.message
+          : 'Progressiefoto’s konden niet worden geladen.',
+      )
+    })
+
+    return () => {
+      active = false
+    }
+  }, [cloudUser, selectedPhotoFolderId, progressPhotos])
+
+  useEffect(() => {
     localStorage.setItem(
       'strongjan-preset-folders',
       JSON.stringify(presetFolders),
@@ -3285,8 +3420,9 @@ const averageMuscleRecovery = muscleRecovery.length
         (payload) => {
           if (!active || currentAuthUserId.current !== userId) return
           const newRow = isRecord(payload.new) ? payload.new : null
-          const data = newRow?.data
-          if (!isCloudFitnessData(data)) return
+          const storedData = newRow?.data
+          if (!isCloudFitnessData(storedData)) return
+          const data = normalizeCloudFitnessData(storedData)
 
           const signature = getCloudDataSignature(data)
           if (signature === lastSyncedCloudSignature.current) return
@@ -3304,6 +3440,8 @@ const averageMuscleRecovery = muscleRecovery.length
           setCustomExercises(data.customExercises.map(normalizeExerciseOption))
           setPresetFolders(data.presetFolders)
           setBodyMeasurements(data.bodyMeasurements)
+          setPhotoFolders(data.photoFolders)
+          setProgressPhotos(data.progressPhotos)
           setCloudSyncError('')
           setCloudSyncStatus('synced')
         },
@@ -3332,13 +3470,17 @@ const averageMuscleRecovery = muscleRecovery.length
         return
       }
 
-      if (data && !isCloudFitnessData(data.data)) {
+      const storedFitnessData = data?.data
+      if (data && !isCloudFitnessData(storedFitnessData)) {
         setCloudSyncError('De opgeslagen accountgegevens hebben een ongeldig formaat.')
         setCloudSyncStatus('error')
         return
       }
 
-      const fitnessData = data?.data ?? currentCloudFitnessData.current
+      let fitnessData = currentCloudFitnessData.current
+      if (storedFitnessData && isCloudFitnessData(storedFitnessData)) {
+        fitnessData = normalizeCloudFitnessData(storedFitnessData)
+      }
       const signature = getCloudDataSignature(fitnessData)
       if (data) {
         setWorkouts(fitnessData.workouts)
@@ -3348,6 +3490,8 @@ const averageMuscleRecovery = muscleRecovery.length
         )
         setPresetFolders(fitnessData.presetFolders)
         setBodyMeasurements(fitnessData.bodyMeasurements)
+        setPhotoFolders(fitnessData.photoFolders)
+        setProgressPhotos(fitnessData.progressPhotos)
       } else {
         const { error: saveError } = await client.from('user_data').upsert({
           user_id: userId,
@@ -3586,6 +3730,182 @@ useEffect(() => {
   const selectedBodyMetricHistory = bodyMeasurements
     .filter((measurement) => measurement.metricId === activeBodyMetric.id)
     .sort((left, right) => left.date.localeCompare(right.date))
+
+  function createPhotoFolder(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const name = photoFolderName.trim()
+    if (!name) {
+      setPhotoError('Vul een naam in voor de map.')
+      return
+    }
+    if (
+      photoFolders.some(
+        (folder) => folder.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
+      )
+    ) {
+      setPhotoError('Er bestaat al een map met deze naam.')
+      return
+    }
+
+    const folder: PhotoFolder = {
+      id: crypto.randomUUID(),
+      name,
+      createdAt: new Date().toISOString(),
+    }
+    setPhotoFolders((current) => [...current, folder])
+    setSelectedPhotoFolderId(folder.id)
+    setPhotoFolderName('')
+    setPhotoError('')
+  }
+
+  async function uploadProgressPhotos(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.currentTarget.files ?? [])
+    event.currentTarget.value = ''
+    if (!files.length) return
+
+    const client = supabase
+    if (!client || !cloudUser) {
+      setPhotoError(
+        !supabaseConfigured
+          ? 'Foto’s uploaden vereist een geconfigureerd Supabase-account.'
+          : 'Log in op je account om progressiefoto’s te uploaden.',
+      )
+      return
+    }
+    if (!selectedPhotoFolderId) {
+      setPhotoError('Selecteer eerst een map.')
+      return
+    }
+
+    const invalidFile = files.find(
+      (file) =>
+        !['image/jpeg', 'image/png', 'image/webp', 'image/avif'].includes(
+          file.type,
+        ) ||
+        file.size > 10 * 1024 * 1024,
+    )
+    if (invalidFile) {
+      setPhotoError(
+        `${invalidFile.name}: kies een JPG-, PNG-, WebP- of AVIF-afbeelding van maximaal 10 MB.`,
+      )
+      return
+    }
+
+    setIsPhotoBusy(true)
+    setPhotoError('')
+    try {
+      for (const file of files) {
+        const photoId = crypto.randomUUID()
+        const extension = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+        const safeExtension = /^[a-z0-9]{1,8}$/.test(extension)
+          ? extension
+          : 'jpg'
+        const storagePath = `${cloudUser.id}/${selectedPhotoFolderId}/${photoId}.${safeExtension}`
+        const { error } = await client.storage
+          .from('progress-photos')
+          .upload(storagePath, file, {
+            contentType: file.type,
+            upsert: false,
+          })
+        if (error) throw error
+
+        setProgressPhotos((current) => [
+          ...current,
+          {
+            id: photoId,
+            folderId: selectedPhotoFolderId,
+            storagePath,
+            fileName: file.name,
+            uploadedAt: new Date().toISOString(),
+          },
+        ])
+      }
+    } catch (error) {
+      setPhotoError(
+        error instanceof Error
+          ? error.message
+          : 'De progressiefoto’s konden niet worden geüpload.',
+      )
+    } finally {
+      setIsPhotoBusy(false)
+    }
+  }
+
+  async function deleteProgressPhoto(photo: ProgressPhoto) {
+    const client = supabase
+    if (!client || !cloudUser) {
+      setPhotoError('Log in op je account om progressiefoto’s te beheren.')
+      return
+    }
+    if (!window.confirm('Deze progressiefoto verwijderen?')) return
+
+    setIsPhotoBusy(true)
+    setPhotoError('')
+    try {
+      const { error } = await client.storage
+        .from('progress-photos')
+        .remove([photo.storagePath])
+      if (error) throw error
+      setProgressPhotos((current) =>
+        current.filter((item) => item.id !== photo.id),
+      )
+    } catch (error) {
+      setPhotoError(
+        error instanceof Error
+          ? error.message
+          : 'De progressiefoto kon niet worden verwijderd.',
+      )
+    } finally {
+      setIsPhotoBusy(false)
+    }
+  }
+
+  async function deletePhotoFolder(folder: PhotoFolder) {
+    const client = supabase
+    const folderPhotos = progressPhotos.filter(
+      (photo) => photo.folderId === folder.id,
+    )
+    if (folderPhotos.length && (!client || !cloudUser)) {
+      setPhotoError('Log in op je account om fotomappen met foto’s te beheren.')
+      return
+    }
+    if (
+      !window.confirm(
+        `Map "${folder.name}" en alle foto’s erin verwijderen? Dit kan niet ongedaan worden gemaakt.`,
+      )
+    ) {
+      return
+    }
+
+    setIsPhotoBusy(true)
+    setPhotoError('')
+    try {
+      if (folderPhotos.length && client) {
+        const { error } = await client.storage
+          .from('progress-photos')
+          .remove(folderPhotos.map((photo) => photo.storagePath))
+        if (error) throw error
+      }
+
+      setProgressPhotos((current) =>
+        current.filter((photo) => photo.folderId !== folder.id),
+      )
+      setPhotoFolders((current) =>
+        current.filter((item) => item.id !== folder.id),
+      )
+      setSelectedPhotoFolderId((current) =>
+        current === folder.id ? null : current,
+      )
+    } catch (error) {
+      setPhotoError(
+        error instanceof Error
+          ? error.message
+          : 'De fotomap kon niet worden verwijderd.',
+      )
+    } finally {
+      setIsPhotoBusy(false)
+    }
+  }
 
   function saveBodyMeasurement(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -4763,13 +5083,14 @@ function showWorkoutInAgenda(workout: Workout, expand = false) {
 
       {view === 'training' && (
         <section className="workout-panel">
-          <section
-            className="training-agenda"
-            aria-label="Trainingsagenda"
-            onTouchStart={(event) => {
-              agendaTouchStartX.current = event.changedTouches[0]?.clientX ?? null
-            }}
-            onTouchEnd={(event) => {
+          {!activeWorkout && (
+            <section
+              className="training-agenda"
+              aria-label="Trainingsagenda"
+              onTouchStart={(event) => {
+                agendaTouchStartX.current = event.changedTouches[0]?.clientX ?? null
+              }}
+              onTouchEnd={(event) => {
               const startX = agendaTouchStartX.current
               const endX = event.changedTouches[0]?.clientX
               agendaTouchStartX.current = null
@@ -4786,8 +5107,8 @@ function showWorkoutInAgenda(workout: Workout, expand = false) {
                 ),
               )
               setExpandedWorkout(null)
-            }}
-          >
+              }}
+            >
             <div className="agenda-heading">
               <div>
                 <h2>Trainingsagenda</h2>
@@ -4967,7 +5288,8 @@ function showWorkoutInAgenda(workout: Workout, expand = false) {
                 })
               )}
             </div>
-          </section>
+            </section>
+          )}
 
           {!activeWorkout ? (
             <>
@@ -5522,6 +5844,15 @@ onTouchEnd={() => {
             >
               Metingen
             </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={selfSection === 'photos'}
+              className={selfSection === 'photos' ? 'active' : ''}
+              onClick={() => setSelfSection('photos')}
+            >
+              Foto’s
+            </button>
           </div>
 
           {selfSection === 'settings' && (
@@ -5724,23 +6055,6 @@ onTouchEnd={() => {
             Bekijk hoe je kracht en trainingsvolume zich ontwikkelen.
           </p>
 
-          {selectedExercise && (
-            <button
-              type="button"
-              className="secondary-button exercise-progress-toggle"
-              aria-expanded={showExerciseProgress}
-              onClick={() =>
-                setShowExerciseProgress((current) => !current)
-              }
-            >
-              {showExerciseProgress
-                ? 'Oefeningprogressie verbergen'
-                : 'Oefeningprogressie tonen'}
-            </button>
-          )}
-
-          {showExerciseProgress && (
-            <>
           <div className="progress-exercise-library">
             <button
               type="button"
@@ -5750,82 +6064,86 @@ onTouchEnd={() => {
                 setShowProgressExercisePicker((current) => !current)
               }
             >
-              <span>{selectedExercise || 'Oefening selecteren'}</span>
-              <span aria-hidden="true">{showProgressExercisePicker ? '⌃' : '⌄'}</span>
+              <span>Oefening selecteren</span>
+              <span>
+                {selectedExercise || 'Kies een oefening'}{' '}
+                {showProgressExercisePicker ? '⌃' : '⌄'}
+              </span>
             </button>
 
             {showProgressExercisePicker && (
               <>
-                <input
-                  id="progress-exercise-search"
-                  type="search"
-                  value={progressExerciseSearch}
-                  onChange={(event) =>
-                    setProgressExerciseSearch(event.target.value)
-                  }
-                  placeholder="Zoek een oefening..."
-                  aria-label="Zoek een oefening"
-                />
+            <input
+              id="progress-exercise-search"
+              type="search"
+              value={progressExerciseSearch}
+              onChange={(event) =>
+                setProgressExerciseSearch(event.target.value)
+              }
+              placeholder="Zoek een oefening..."
+              aria-label="Zoek een oefening"
+            />
 
-                <div className="muscle-filters">
-                  {progressMuscleGroups.map((group) => (
+            <div className="muscle-filters">
+              {progressMuscleGroups.map((group) => (
+                <button
+                  key={group}
+                  type="button"
+                  className={
+                    progressMuscleGroup === group
+                      ? 'muscle-filter active'
+                      : 'muscle-filter'
+                  }
+                  onClick={() => setProgressMuscleGroup(group)}
+                >
+                  {group}
+                </button>
+              ))}
+            </div>
+
+            <div className="exercise-library-list progress-exercise-list">
+              {filteredProgressExercises.map((exercise, index) => {
+                const letter = exercise.name
+                  .charAt(0)
+                  .toLocaleUpperCase('nl-NL')
+                const previousLetter = filteredProgressExercises[index - 1]
+                  ?.name.charAt(0).toLocaleUpperCase('nl-NL')
+
+                return (
+                  <Fragment key={exercise.name}>
+                    {letter !== previousLetter && (
+                      <h3 className="exercise-library-letter">{letter}</h3>
+                    )}
                     <button
-                      key={group}
                       type="button"
                       className={
-                        progressMuscleGroup === group
-                          ? 'muscle-filter active'
-                          : 'muscle-filter'
+                        selectedExercise === exercise.name
+                          ? 'library-exercise selected'
+                          : 'library-exercise'
                       }
-                      onClick={() => setProgressMuscleGroup(group)}
+                      aria-pressed={selectedExercise === exercise.name}
+                      onClick={() => {
+                        setSelectedExercise(exercise.name)
+                        setShowProgressExercisePicker(false)
+                      }}
                     >
-                      {group}
+                      <span>{exercise.name}</span>
+                      <span>
+                        {exercise.muscleGroup}
+                        {selectedExercise === exercise.name ? ' ✓' : ''}
+                      </span>
                     </button>
-                  ))}
-                </div>
-
-                <div className="exercise-library-list progress-exercise-list">
-                  {filteredProgressExercises.map((exercise, index) => {
-                    const letter = exercise.name
-                      .charAt(0)
-                      .toLocaleUpperCase('nl-NL')
-                    const previousLetter = filteredProgressExercises[index - 1]
-                      ?.name.charAt(0).toLocaleUpperCase('nl-NL')
-
-                    return (
-                      <Fragment key={exercise.name}>
-                        {letter !== previousLetter && (
-                          <h3 className="exercise-library-letter">{letter}</h3>
-                        )}
-                        <button
-                          type="button"
-                          className={
-                            selectedExercise === exercise.name
-                              ? 'library-exercise selected'
-                              : 'library-exercise'
-                          }
-                          onClick={() => {
-                            setSelectedExercise(exercise.name)
-                            setShowProgressExercisePicker(false)
-                          }}
-                        >
-                          <span>{exercise.name}</span>
-                          <span>
-                            {exercise.muscleGroup}
-                            {selectedExercise === exercise.name ? ' ✓' : ''}
-                          </span>
-                        </button>
-                      </Fragment>
-                    )
-                  })}
-                  {filteredProgressExercises.length === 0 && (
-                    <p className="subtitle">
-                      {progressExerciseOptions.length === 0
-                        ? 'Sla eerst een training met oefeningen op.'
-                        : 'Geen oefeningen gevonden.'}
-                    </p>
-                  )}
-                </div>
+                  </Fragment>
+                )
+              })}
+              {filteredProgressExercises.length === 0 && (
+                <p className="subtitle">
+                  {progressExerciseOptions.length === 0
+                    ? 'Sla eerst een training met oefeningen op.'
+                    : 'Geen oefeningen gevonden.'}
+                </p>
+              )}
+            </div>
               </>
             )}
           </div>
@@ -5905,9 +6223,6 @@ onTouchEnd={() => {
               ))}
             </>
           )}
-          </>
-          )}
-
           </section>
           )}
 
@@ -6024,6 +6339,196 @@ onTouchEnd={() => {
             </article>
           </section>
           </section>
+          )}
+
+          {selfSection === 'photos' && (
+            <section className="photos-page">
+              <h2>Progressiefoto’s</h2>
+              <p className="subtitle">
+                Bewaar foto’s privé in je account en vergelijk je voortgang.
+              </p>
+
+              {!cloudUser && (
+                <p className="photo-storage-notice" role="status">
+                  Log in via Instellingen om foto’s te uploaden en tussen
+                  apparaten te synchroniseren.
+                </p>
+              )}
+
+              <form className="photo-folder-form" onSubmit={createPhotoFolder}>
+                <label htmlFor="photo-folder-name">Nieuwe map</label>
+                <div>
+                  <input
+                    id="photo-folder-name"
+                    value={photoFolderName}
+                    onChange={(event) => setPhotoFolderName(event.target.value)}
+                    placeholder="Bijv. Start, maand 1"
+                    maxLength={50}
+                  />
+                  <button type="submit" disabled={isPhotoBusy}>
+                    Map maken
+                  </button>
+                </div>
+              </form>
+
+              {photoFolders.length > 0 ? (
+                <div className="photo-folder-list" aria-label="Fotomappen">
+                  {photoFolders.map((folder) => {
+                    const folderPhotoCount = progressPhotos.filter(
+                      (photo) => photo.folderId === folder.id,
+                    ).length
+                    const isSelected = selectedPhotoFolderId === folder.id
+                    return (
+                      <article
+                        className={
+                          isSelected
+                            ? 'photo-folder-card selected'
+                            : 'photo-folder-card'
+                        }
+                        key={folder.id}
+                      >
+                        <button
+                          type="button"
+                          aria-pressed={isSelected}
+                          onClick={() => {
+                            setSelectedPhotoFolderId(folder.id)
+                            setPhotoError('')
+                          }}
+                        >
+                          <strong>{folder.name}</strong>
+                          <span>
+                            {folderPhotoCount}{' '}
+                            {folderPhotoCount === 1 ? 'foto' : 'foto’s'}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className="photo-folder-delete"
+                          aria-label={`Map ${folder.name} verwijderen`}
+                          disabled={isPhotoBusy}
+                          onClick={() => void deletePhotoFolder(folder)}
+                        >
+                          Verwijderen
+                        </button>
+                      </article>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="subtitle photo-empty-state">
+                  Maak een map om je progressiefoto’s te ordenen.
+                </p>
+              )}
+
+              {selectedPhotoFolderId && (
+                <section className="photo-folder-content">
+                  <div className="photo-folder-heading">
+                    <h3>
+                      {photoFolders.find(
+                        (folder) => folder.id === selectedPhotoFolderId,
+                      )?.name ?? 'Fotomap'}
+                    </h3>
+                    <label
+                      className={
+                        cloudUser && !isPhotoBusy
+                          ? 'photo-upload-button'
+                          : 'photo-upload-button disabled'
+                      }
+                    >
+                      {isPhotoBusy ? 'Bezig…' : 'Foto’s uploaden'}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/avif"
+                        multiple
+                        disabled={!cloudUser || isPhotoBusy}
+                        onChange={(event) => void uploadProgressPhotos(event)}
+                      />
+                    </label>
+                  </div>
+
+                  <p className="photo-upload-hint">
+                    JPG, PNG, WebP of AVIF · maximaal 10 MB per foto
+                  </p>
+
+                  {photoError && (
+                    <p className="photo-error" role="alert">{photoError}</p>
+                  )}
+
+                  {progressPhotos.filter(
+                    (photo) => photo.folderId === selectedPhotoFolderId,
+                  ).length === 0 ? (
+                    <p className="subtitle photo-empty-state">
+                      Nog geen foto’s in deze map.
+                    </p>
+                  ) : (
+                    <div className="progress-photo-grid">
+                      {progressPhotos
+                        .filter(
+                          (photo) => photo.folderId === selectedPhotoFolderId,
+                        )
+                        .sort(
+                          (left, right) =>
+                            left.uploadedAt.localeCompare(right.uploadedAt),
+                        )
+                        .map((photo) => {
+                          const photoUrl =
+                            photoUrls?.userId === cloudUser?.id &&
+                            photoUrls?.folderId === selectedPhotoFolderId
+                              ? photoUrls?.urls[photo.id]
+                              : undefined
+                          return (
+                            <article
+                              className="progress-photo-card"
+                              key={photo.id}
+                            >
+                              {photoUrl ? (
+                                <img
+                                  src={photoUrl}
+                                  alt={`Progressiefoto toegevoegd op ${new Date(
+                                    photo.uploadedAt,
+                                  ).toLocaleDateString('nl-NL')}`}
+                                  loading="lazy"
+                                />
+                              ) : (
+                                <div
+                                  className="progress-photo-placeholder"
+                                  role="status"
+                                >
+                                  {cloudUser
+                                    ? 'Foto laden…'
+                                    : 'Log in om foto’s te bekijken'}
+                                </div>
+                              )}
+                              <div>
+                                <span>
+                                  {new Date(photo.uploadedAt).toLocaleDateString(
+                                    'nl-NL',
+                                  )}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="photo-delete-button"
+                                  aria-label={`${photo.fileName} verwijderen`}
+                                  disabled={isPhotoBusy}
+                                  onClick={() =>
+                                    void deleteProgressPhoto(photo)
+                                  }
+                                >
+                                  Verwijderen
+                                </button>
+                              </div>
+                            </article>
+                          )
+                        })}
+                    </div>
+                  )}
+                </section>
+              )}
+
+              {photoError && !selectedPhotoFolderId && (
+                <p className="photo-error" role="alert">{photoError}</p>
+              )}
+            </section>
           )}
         </section>
       )}
