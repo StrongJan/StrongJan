@@ -3107,6 +3107,13 @@ function App() {
     string | null
   >(null)
   const [photoFolderName, setPhotoFolderName] = useState('')
+  const [photoFolderNameDraft, setPhotoFolderNameDraft] = useState('')
+  const [editingPhotoFolderId, setEditingPhotoFolderId] = useState<string | null>(
+    null,
+  )
+  const [openPhotoFolderMenuId, setOpenPhotoFolderMenuId] = useState<
+    string | null
+  >(null)
   const [photoUrls, setPhotoUrls] = useState<{
     userId: string
     folderId: string
@@ -3755,6 +3762,35 @@ useEffect(() => {
     setPhotoFolders((current) => [...current, folder])
     setSelectedPhotoFolderId(folder.id)
     setPhotoFolderName('')
+    setPhotoError('')
+  }
+
+  function renamePhotoFolder(
+    event: FormEvent<HTMLFormElement>,
+    folder: PhotoFolder,
+  ) {
+    event.preventDefault()
+    const name = photoFolderNameDraft.trim()
+    if (!name) {
+      setPhotoError('Vul een naam in voor de map.')
+      return
+    }
+    if (
+      photoFolders.some(
+        (item) =>
+          item.id !== folder.id &&
+          item.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
+      )
+    ) {
+      setPhotoError('Er bestaat al een map met deze naam.')
+      return
+    }
+
+    setPhotoFolders((current) =>
+      current.map((item) => (item.id === folder.id ? { ...item, name } : item)),
+    )
+    setEditingPhotoFolderId(null)
+    setPhotoFolderNameDraft('')
     setPhotoError('')
   }
 
@@ -6381,35 +6417,134 @@ onTouchEnd={() => {
                     return (
                       <article
                         className={
-                          isSelected
-                            ? 'photo-folder-card selected'
-                            : 'photo-folder-card'
+                          [
+                            'photo-folder-card',
+                            isSelected && 'selected',
+                            openPhotoFolderMenuId === folder.id && 'menu-open',
+                          ]
+                            .filter(Boolean)
+                            .join(' ')
                         }
                         key={folder.id}
                       >
-                        <button
-                          type="button"
-                          aria-pressed={isSelected}
-                          onClick={() => {
-                            setSelectedPhotoFolderId(folder.id)
-                            setPhotoError('')
-                          }}
-                        >
-                          <strong>{folder.name}</strong>
-                          <span>
-                            {folderPhotoCount}{' '}
-                            {folderPhotoCount === 1 ? 'foto' : 'foto’s'}
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          className="photo-folder-delete"
-                          aria-label={`Map ${folder.name} verwijderen`}
-                          disabled={isPhotoBusy}
-                          onClick={() => void deletePhotoFolder(folder)}
-                        >
-                          Verwijderen
-                        </button>
+                        {editingPhotoFolderId === folder.id ? (
+                          <form
+                            className="photo-folder-rename-form"
+                            onSubmit={(event) =>
+                              renamePhotoFolder(event, folder)
+                            }
+                          >
+                            <input
+                              aria-label={`Nieuwe naam voor map ${folder.name}`}
+                              autoFocus
+                              maxLength={50}
+                              value={photoFolderNameDraft}
+                              onChange={(event) =>
+                                setPhotoFolderNameDraft(event.target.value)
+                              }
+                            />
+                            <button type="submit">Opslaan</button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingPhotoFolderId(null)
+                                setPhotoFolderNameDraft('')
+                                setPhotoError('')
+                              }}
+                            >
+                              Annuleren
+                            </button>
+                          </form>
+                        ) : (
+                          <button
+                            type="button"
+                            className="photo-folder-select"
+                            aria-pressed={isSelected}
+                            onClick={() => {
+                              setSelectedPhotoFolderId(folder.id)
+                              setOpenPhotoFolderMenuId(null)
+                              setPhotoError('')
+                            }}
+                          >
+                            <span className="photo-folder-icon" aria-hidden="true">
+                              <svg viewBox="0 0 24 24" fill="none">
+                                <path
+                                  d="M3.5 6.75A1.75 1.75 0 0 1 5.25 5h4.1l2 2h7.4A1.75 1.75 0 0 1 20.5 8.75v8.5A1.75 1.75 0 0 1 18.75 19h-13A2.25 2.25 0 0 1 3.5 16.75v-10Z"
+                                  stroke="currentColor"
+                                  strokeWidth="1.7"
+                                  strokeLinejoin="round"
+                                />
+                                <path
+                                  d="M3.75 9h16.5"
+                                  stroke="currentColor"
+                                  strokeWidth="1.7"
+                                />
+                              </svg>
+                            </span>
+                            <span className="photo-folder-details">
+                              <strong>{folder.name}</strong>
+                              <span>
+                                {folderPhotoCount}{' '}
+                                {folderPhotoCount === 1 ? 'foto' : 'foto’s'}
+                              </span>
+                            </span>
+                            <span
+                              className="photo-folder-indicator"
+                              aria-hidden="true"
+                            >
+                              {isSelected ? '✓' : '›'}
+                            </span>
+                          </button>
+                        )}
+                        {editingPhotoFolderId !== folder.id && (
+                          <div className="photo-folder-menu-container">
+                            <button
+                              type="button"
+                              className="photo-folder-menu-trigger"
+                              aria-label={`Opties voor map ${folder.name}`}
+                              aria-haspopup="menu"
+                              aria-expanded={openPhotoFolderMenuId === folder.id}
+                              onClick={() =>
+                                setOpenPhotoFolderMenuId((current) =>
+                                  current === folder.id ? null : folder.id,
+                                )
+                              }
+                            >
+                              ⋮
+                            </button>
+                            {openPhotoFolderMenuId === folder.id && (
+                              <div
+                                className="photo-folder-menu"
+                                role="menu"
+                                aria-label={`Opties voor map ${folder.name}`}
+                              >
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => {
+                                    setPhotoFolderNameDraft(folder.name)
+                                    setEditingPhotoFolderId(folder.id)
+                                    setOpenPhotoFolderMenuId(null)
+                                    setPhotoError('')
+                                  }}
+                                >
+                                  Naam aanpassen
+                                </button>
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  disabled={isPhotoBusy}
+                                  onClick={() => {
+                                    setOpenPhotoFolderMenuId(null)
+                                    void deletePhotoFolder(folder)
+                                  }}
+                                >
+                                  Verwijderen
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </article>
                     )
                   })}
@@ -6428,22 +6563,55 @@ onTouchEnd={() => {
                         (folder) => folder.id === selectedPhotoFolderId,
                       )?.name ?? 'Fotomap'}
                     </h3>
-                    <label
-                      className={
-                        cloudUser && !isPhotoBusy
-                          ? 'photo-upload-button'
-                          : 'photo-upload-button disabled'
-                      }
-                    >
-                      {isPhotoBusy ? 'Bezig…' : 'Foto’s uploaden'}
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,image/avif"
-                        multiple
-                        disabled={!cloudUser || isPhotoBusy}
-                        onChange={(event) => void uploadProgressPhotos(event)}
-                      />
-                    </label>
+                    <div className="photo-folder-actions">
+                      <label
+                        className={
+                          cloudUser && !isPhotoBusy
+                            ? 'photo-upload-button photo-capture-button'
+                            : 'photo-upload-button photo-capture-button disabled'
+                        }
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <path
+                            d="M4 7.5h3l1.4-2h7.2l1.4 2h3A1.5 1.5 0 0 1 21.5 9v9a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 18V9A1.5 1.5 0 0 1 4 7.5Z"
+                            stroke="currentColor"
+                            strokeWidth="1.7"
+                            strokeLinejoin="round"
+                          />
+                          <circle
+                            cx="12"
+                            cy="13.25"
+                            r="3.25"
+                            stroke="currentColor"
+                            strokeWidth="1.7"
+                          />
+                        </svg>
+                        <span>{isPhotoBusy ? 'Bezig…' : 'Foto maken'}</span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/avif"
+                          capture="environment"
+                          disabled={!cloudUser || isPhotoBusy}
+                          onChange={(event) => void uploadProgressPhotos(event)}
+                        />
+                      </label>
+                      <label
+                        className={
+                          cloudUser && !isPhotoBusy
+                            ? 'photo-upload-button photo-library-button'
+                            : 'photo-upload-button photo-library-button disabled'
+                        }
+                      >
+                        {isPhotoBusy ? 'Bezig…' : 'Foto’s kiezen'}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/avif"
+                          multiple
+                          disabled={!cloudUser || isPhotoBusy}
+                          onChange={(event) => void uploadProgressPhotos(event)}
+                        />
+                      </label>
+                    </div>
                   </div>
 
                   <p className="photo-upload-hint">
