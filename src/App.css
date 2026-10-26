@@ -32,6 +32,131 @@
   margin-top: 8px;
 }
 
+.training-agenda {
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid var(--theme-border);
+  border-radius: 18px;
+  background: #ffffff;
+  text-align: left;
+  touch-action: pan-y;
+}
+
+.agenda-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.agenda-heading h2 {
+  margin: 0;
+  color: var(--theme-text);
+  font-size: 1.1rem;
+}
+
+.agenda-heading p {
+  margin-top: 4px;
+  color: var(--theme-soft-text);
+  font-size: 0.82rem;
+  text-transform: capitalize;
+}
+
+.agenda-week-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.agenda-week-button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--theme-border);
+  border-radius: 11px;
+  color: var(--theme-text);
+  background: var(--theme-light);
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.agenda-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.agenda-day {
+  display: flex;
+  min-width: 0;
+  min-height: 76px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 7px 2px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  color: var(--theme-soft-text);
+  background: var(--theme-tint);
+  box-shadow: none;
+}
+
+.agenda-day > span {
+  font-size: 0.68rem;
+  line-height: 1;
+  text-transform: capitalize;
+}
+
+.agenda-day > strong {
+  color: var(--theme-text);
+  font-size: 1rem;
+  line-height: 1.1;
+}
+
+.agenda-day.selected {
+  border-color: var(--theme);
+  color: #ffffff;
+  background: var(--theme);
+}
+
+.agenda-day.selected > strong {
+  color: #ffffff;
+}
+
+.agenda-day-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.agenda-day-dot.has-workout {
+  background: var(--theme);
+}
+
+.agenda-day.selected .agenda-day-dot.has-workout {
+  background: #ffffff;
+}
+
+.agenda-day-workouts {
+  margin-top: 18px;
+}
+
+.agenda-day-workouts > h3 {
+  margin: 0 0 8px;
+  color: var(--theme-text);
+  font-size: 0.95rem;
+  text-transform: capitalize;
+}
+
+.agenda-day-workouts > .subtitle {
+  padding: 14px 0 2px;
+  text-align: left;
+}
+
 .chart-card {
   padding: 16px;
   margin-top: 20px;
@@ -438,6 +563,11 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.home-stats-heading {
+  justify-content: center;
+  text-align: center;
 }
 
 .home-section-heading h2 {
@@ -1708,8 +1838,17 @@ body {
 
 .muscle-filters {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+
+.muscle-filters .muscle-filter {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .exercise-library-list {
@@ -2048,74 +2187,74 @@ body {
     sans-serif;
   background: #f5f6f2;
   color: #26352a;
-  --theme: #285943;
-  --theme-hover: #204833;
-  --theme-light: #e5eee3;
-  --theme-border: #cbdcc8;
-  --theme-text: #285943;
-  --theme-tint: #edf5ef;
-  --theme-soft-text: #52765c;
-  --theme-chart: #285943;
-  --theme-chart-point: #e5eee3;
+  --theme: #16803c;
+  --theme-hover: #11632e;
+  --theme-light: #e1f5e7;
+  --theme-border: #a6d9b3;
+  --theme-text: #14532d;
+  --theme-tint: #f0fbf2;
+  --theme-soft-text: #39734b;
+  --theme-chart: #16803c;
+  --theme-chart-point: #e1f5e7;
 }
 
 :root[data-theme="red"] {
-  --theme: #c0392b;
-  --theme-hover: #962d22;
-  --theme-light: #f8e5e3;
-  --theme-border: #e8b9b4;
-  --theme-text: #922b21;
-  --theme-tint: #fdf0ef;
-  --theme-soft-text: #a34840;
-  --theme-chart: #c0392b;
-  --theme-chart-point: #f8e5e3;
+  --theme: #e53935;
+  --theme-hover: #bd2825;
+  --theme-light: #ffebea;
+  --theme-border: #f1aaa7;
+  --theme-text: #a6201d;
+  --theme-tint: #fff5f4;
+  --theme-soft-text: #b4423f;
+  --theme-chart: #e53935;
+  --theme-chart-point: #ffebea;
 }
 
 :root[data-theme="blue"] {
-  --theme: #2471a3;
-  --theme-hover: #1b5278;
-  --theme-light: #e2eef7;
-  --theme-border: #b7d3e8;
-  --theme-text: #1b5278;
-  --theme-tint: #edf5fb;
-  --theme-soft-text: #427ba0;
-  --theme-chart: #2471a3;
-  --theme-chart-point: #e2eef7;
+  --theme: #1677e8;
+  --theme-hover: #125fba;
+  --theme-light: #e4f0ff;
+  --theme-border: #a8caf5;
+  --theme-text: #124f9c;
+  --theme-tint: #f1f7ff;
+  --theme-soft-text: #3d6fa8;
+  --theme-chart: #1677e8;
+  --theme-chart-point: #e4f0ff;
 }
 
 :root[data-theme="purple"] {
-  --theme: #7950a0;
-  --theme-hover: #593779;
-  --theme-light: #eee5f5;
-  --theme-border: #d3bee5;
-  --theme-text: #593779;
-  --theme-tint: #f6f0fa;
-  --theme-soft-text: #80629a;
-  --theme-chart: #7950a0;
-  --theme-chart-point: #eee5f5;
+  --theme: #8138d8;
+  --theme-hover: #652ab0;
+  --theme-light: #f0e6ff;
+  --theme-border: #c8a8f0;
+  --theme-text: #542293;
+  --theme-tint: #f8f3ff;
+  --theme-soft-text: #7651a0;
+  --theme-chart: #8138d8;
+  --theme-chart-point: #f0e6ff;
 }
 
 :root[data-theme="gray"] {
-  --theme: #626b73;
-  --theme-hover: #454c52;
-  --theme-light: #e9ecef;
-  --theme-border: #cbd0d5;
-  --theme-text: #454c52;
-  --theme-tint: #f1f3f5;
-  --theme-soft-text: #68747e;
-  --theme-chart: #626b73;
-  --theme-chart-point: #e9ecef;
+  --theme: #475569;
+  --theme-hover: #334155;
+  --theme-light: #e8edf4;
+  --theme-border: #c1ccda;
+  --theme-text: #334155;
+  --theme-tint: #f3f6fa;
+  --theme-soft-text: #5a687a;
+  --theme-chart: #475569;
+  --theme-chart-point: #e8edf4;
 }
 
 :root[data-theme="orange"] {
-  --theme: #d97726;
-  --theme-hover: #a95818;
+  --theme: #f07816;
+  --theme-hover: #c65d0b;
   --theme-light: #fff0df;
-  --theme-border: #f0d0ad;
-  --theme-text: #965016;
-  --theme-tint: #fff7ed;
-  --theme-soft-text: #a96b35;
-  --theme-chart: #d97726;
+  --theme-border: #f3c08f;
+  --theme-text: #984509;
+  --theme-tint: #fff8f0;
+  --theme-soft-text: #a85d25;
+  --theme-chart: #f07816;
   --theme-chart-point: #fff0df;
 }
 
@@ -2132,15 +2271,15 @@ body {
 }
 
 :root[data-theme="turquoise"] {
-  --theme: #168a83;
-  --theme-hover: #106760;
-  --theme-light: #e0f3f1;
-  --theme-border: #b1dcd8;
-  --theme-text: #106760;
-  --theme-tint: #effaf9;
-  --theme-soft-text: #43847f;
-  --theme-chart: #168a83;
-  --theme-chart-point: #e0f3f1;
+  --theme: #009688;
+  --theme-hover: #00796f;
+  --theme-light: #ddf5f2;
+  --theme-border: #9edbd4;
+  --theme-text: #006b63;
+  --theme-tint: #f0fbf9;
+  --theme-soft-text: #347d77;
+  --theme-chart: #009688;
+  --theme-chart-point: #ddf5f2;
 }
 
 button:not(.home-start-button):not(.home-text-button):not(.home-open-button):not(.home-progress-card):not(.history-summary):not(.nav-button):not(.library-exercise):not(.theme-option):not(.home-settings-button):not(.muscle-filter):not(.rest-menu-button):not(.set-checkbox):not(.set-row):not(.set-heading) {

@@ -121,7 +121,7 @@ function loadPersistedWorkoutSession(): PersistedWorkoutSession | null {
   }
 }
 
-type View = 'home' | 'training' | 'history' | 'progress'
+type View = 'home' | 'training' | 'exercises' | 'progress'
 type Metric = 'weight' | 'oneRepMax' | 'volume'
 
 
@@ -1579,7 +1579,7 @@ function getMuscleRecovery(
       : muscleGroup === 'Overig'
         ? ''
         : muscleGroup
-  const recoveryHours = 48
+  const recoveryHours = 54
   const maxEffortSetsToZeroScore = 10
   const muscleGroups = new Set(
     exerciseMuscleGroupOptions.map(normalizeMuscleGroup),
@@ -2223,9 +2223,11 @@ function ExerciseLibraryPanel({
     return (
       <div className="exercise-library">
         <div className="exercise-library-heading">
-          <button type="button" className="secondary-button" onClick={onBack}>
-            ← Terug
-          </button>
+          {onSelect && (
+            <button type="button" className="secondary-button" onClick={onBack}>
+              ← Terug
+            </button>
+          )}
           <h2>Oefeningdetails</h2>
         </div>
         <ExerciseLibraryExerciseDetails
@@ -2265,10 +2267,12 @@ function ExerciseLibraryPanel({
   return (
     <div className="exercise-library">
       <div className="exercise-library-heading">
-        <button type="button" className="secondary-button" onClick={onBack}>
-          ← Terug
-        </button>
-        <h2>{onSelect ? 'Oefening toevoegen' : 'Oefeningen beheren'}</h2>
+        {onSelect && (
+          <button type="button" className="secondary-button" onClick={onBack}>
+            ← Terug
+          </button>
+        )}
+        <h2>{onSelect ? 'Oefening toevoegen' : 'Oefeningen'}</h2>
         <div className="exercise-library-menu-wrap">
           <button
             type="button"
@@ -3080,9 +3084,8 @@ function App() {
   const [openRestMenuExerciseId, setOpenRestMenuExerciseId] =
   useState<number | null>(null)
   const restDuration = 120
-  const [showExerciseLibrary, setShowExerciseLibrary] = useState(false)
-const [manageExerciseLibrary, setManageExerciseLibrary] = useState(false)
-const [timerRemaining, setTimerRemaining] = useState(120)
+    const [showExerciseLibrary, setShowExerciseLibrary] = useState(false)
+  const [timerRemaining, setTimerRemaining] = useState(120)
 const [timerRunning, setTimerRunning] = useState(false)
 const [restAfterSet, setRestAfterSet] = useState<{
   exerciseId: number
@@ -3102,6 +3105,8 @@ const [themeColor, setThemeColor] = useState(() => {
 })
 
   const [expandedWorkout, setExpandedWorkout] = useState<number | null>(null)
+  const [agendaDate, setAgendaDate] = useState(() => dateKey(new Date()))
+  const agendaTouchStartX = useRef<number | null>(null)
 const allExerciseOptions = useMemo(
   () => [...exerciseLibrary, ...customExercises.map(normalizeExerciseOption)],
   [customExercises],
@@ -3130,6 +3135,20 @@ const averageMuscleRecovery = muscleRecovery.length
         muscleRecovery.length,
     )
   : 100
+  const selectedAgendaDate = parseWorkoutDate(agendaDate) ?? new Date()
+  const agendaWeekStart = getWeekStart(selectedAgendaDate)
+  const agendaWeekDays = Array.from({ length: 7 }, (_, index) =>
+    addCalendarDays(agendaWeekStart, index),
+  )
+  const selectedDayWorkouts = workouts
+    .filter((workout) => {
+      const workoutDate = parseWorkoutDate(workout.date)
+      return workoutDate !== null && dateKey(workoutDate) === agendaDate
+    })
+    .sort(
+      (left, right) =>
+        getWorkoutSortTimestamp(right) - getWorkoutSortTimestamp(left),
+    )
   useEffect(() => {
     localStorage.setItem('fitnessai-workouts', JSON.stringify(workouts))
   }, [workouts])
@@ -4258,8 +4277,7 @@ function saveWorkoutOnly() {
         ? 'Training en preset opgeslagen.'
         : 'Training opgeslagen in je geschiedenis.',
   )
-  setExpandedWorkout(activeWorkout.id)
-  setView('history')
+  showWorkoutInAgenda(savedWorkout, true)
 }
 function getWorkoutSummaryPRs(exercise: Exercise) {
   const previousSets = workouts
@@ -4320,11 +4338,7 @@ function getWorkoutSummaryPRs(exercise: Exercise) {
     setActiveWorkout(null)
     setWorkoutStartedAt(null)
     setWorkoutElapsedSeconds(0)
-    setMessage(
-      isBuildingPreset
-        ? 'Preset maken geannuleerd. Niet opgeslagen.'
-        : 'Training geannuleerd. Niet opgeslagen.',
-    )
+    setMessage('')
     setIsBuildingPreset(false)
     setEditingPresetId(null)
     setEditingWorkoutId(null)
@@ -4375,6 +4389,13 @@ function removeSelectedRecordExercise(name: string) {
   )
 }
 
+function showWorkoutInAgenda(workout: Workout, expand = false) {
+  const workoutDate = parseWorkoutDate(workout.date)
+  if (workoutDate) setAgendaDate(dateKey(workoutDate))
+  setExpandedWorkout(expand ? workout.id : null)
+  setView('training')
+}
+
   return (
     <main className="dashboard">
 
@@ -4402,11 +4423,17 @@ function removeSelectedRecordExercise(name: string) {
   </button>
 
   <button
-    className={view === 'history' ? 'nav-button active' : 'nav-button'}
-    onClick={() => setView('history')}
+    className={view === 'exercises' ? 'nav-button active' : 'nav-button'}
+    onClick={() => setView('exercises')}
   >
-    <span className="nav-icon">◷</span>
-    <span>Geschiedenis</span>
+    <svg
+      className="nav-icon nav-user-icon"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <path d="M6 8v8M3.5 9.5v5M18 8v8m2.5-6.5v5M6 12h12" />
+    </svg>
+    <span>Oefeningen</span>
   </button>
 
   <button
@@ -4425,7 +4452,6 @@ function removeSelectedRecordExercise(name: string) {
     <span>Jij</span>
   </button>
 </nav>
-      {message && <p className="message">{message}</p>}
 {showWorkoutSummary && activeWorkout && (
   <div className="summary-overlay">
     <section
@@ -4605,7 +4631,7 @@ function removeSelectedRecordExercise(name: string) {
       <div className="hero-decoration" aria-hidden="true">🏋</div>
     </div>
 
-    <div className="home-section-heading">
+    <div className="home-section-heading home-stats-heading">
       <div>
         <h2>Jouw statistieken</h2>
         <p>Dit heb je tot nu toe opgebouwd.</p>
@@ -4685,7 +4711,7 @@ function removeSelectedRecordExercise(name: string) {
       {workouts.length > 0 && (
         <button
           className="home-text-button"
-          onClick={() => setView('history')}
+          onClick={() => showWorkoutInAgenda(workouts[0])}
         >
           Alles bekijken →
         </button>
@@ -4723,10 +4749,7 @@ function removeSelectedRecordExercise(name: string) {
         </div>
         <button
           className="home-open-button"
-          onClick={() => {
-            setExpandedWorkout(workouts[0].id)
-            setView('history')
-          }}
+          onClick={() => showWorkoutInAgenda(workouts[0], true)}
         >
           Bekijk →
         </button>
@@ -4740,14 +4763,213 @@ function removeSelectedRecordExercise(name: string) {
 
       {view === 'training' && (
         <section className="workout-panel">
-          {!activeWorkout && manageExerciseLibrary ? (
-            <ExerciseLibraryPanel
-              exercises={allExerciseOptions}
-              workouts={workouts}
-              onBack={() => setManageExerciseLibrary(false)}
-              onAddExercise={addCustomExercise}
-            />
-          ) : !activeWorkout ? (
+          <section
+            className="training-agenda"
+            aria-label="Trainingsagenda"
+            onTouchStart={(event) => {
+              agendaTouchStartX.current = event.changedTouches[0]?.clientX ?? null
+            }}
+            onTouchEnd={(event) => {
+              const startX = agendaTouchStartX.current
+              const endX = event.changedTouches[0]?.clientX
+              agendaTouchStartX.current = null
+              if (startX === null || endX === undefined) return
+              const distance = endX - startX
+              if (Math.abs(distance) < 50) return
+              event.preventDefault()
+              setAgendaDate(
+                dateKey(
+                  addCalendarDays(
+                    selectedAgendaDate,
+                    distance < 0 ? 7 : -7,
+                  ),
+                ),
+              )
+              setExpandedWorkout(null)
+            }}
+          >
+            <div className="agenda-heading">
+              <div>
+                <h2>Trainingsagenda</h2>
+                <p>
+                  Week {getIsoWeekNumber(agendaWeekStart)} ·{' '}
+                  {agendaWeekStart.toLocaleDateString('nl-NL', {
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+                </p>
+              </div>
+              <div className="agenda-week-controls">
+                <button
+                  type="button"
+                  className="agenda-week-button"
+                  aria-label="Vorige week"
+                  onClick={() => {
+                    setAgendaDate(
+                      dateKey(addCalendarDays(selectedAgendaDate, -7)),
+                    )
+                    setExpandedWorkout(null)
+                  }}
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  className="agenda-week-button"
+                  aria-label="Volgende week"
+                  onClick={() => {
+                    setAgendaDate(
+                      dateKey(addCalendarDays(selectedAgendaDate, 7)),
+                    )
+                    setExpandedWorkout(null)
+                  }}
+                >
+                  ›
+                </button>
+              </div>
+            </div>
+
+            <div className="agenda-days" role="group" aria-label="Dagen van de week">
+              {agendaWeekDays.map((day) => {
+                const dayKey = dateKey(day)
+                const hasWorkout = workouts.some((workout) => {
+                  const workoutDate = parseWorkoutDate(workout.date)
+                  return workoutDate !== null && dateKey(workoutDate) === dayKey
+                })
+                const isSelected = dayKey === agendaDate
+                return (
+                  <button
+                    key={dayKey}
+                    type="button"
+                    className={
+                      isSelected ? 'agenda-day selected' : 'agenda-day'
+                    }
+                    aria-pressed={isSelected}
+                    aria-label={`${day.toLocaleDateString('nl-NL', {
+                      weekday: 'long',
+                      day: 'numeric',
+                      month: 'long',
+                    })}${hasWorkout ? ', training opgeslagen' : ''}`}
+                    onClick={() => {
+                      setAgendaDate(dayKey)
+                      setExpandedWorkout(null)
+                    }}
+                  >
+                    <span>
+                      {day.toLocaleDateString('nl-NL', {
+                        weekday: 'short',
+                      }).replace('.', '')}
+                    </span>
+                    <strong>{day.getDate()}</strong>
+                    <i
+                      className={hasWorkout ? 'agenda-day-dot has-workout' : 'agenda-day-dot'}
+                      aria-hidden="true"
+                    />
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="agenda-day-workouts">
+              <h3>
+                {selectedAgendaDate.toLocaleDateString('nl-NL', {
+                  weekday: 'long',
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                })}
+              </h3>
+              {selectedDayWorkouts.length === 0 ? (
+                <p className="subtitle">Geen trainingen op deze dag.</p>
+              ) : (
+                selectedDayWorkouts.map((workout) => {
+                  const setCount = workout.exercises.reduce(
+                    (total, exercise) => total + exercise.sets.length,
+                    0,
+                  )
+                  const recordCount =
+                    personalRecordsByWorkout.find(
+                      (entry) => entry.workoutId === workout.id,
+                    )?.records.length || 0
+                  const isExpanded = expandedWorkout === workout.id
+
+                  return (
+                    <article
+                      className="history-card compact-history-card"
+                      key={workout.id}
+                    >
+                      <button
+                        className="history-summary"
+                        aria-expanded={isExpanded}
+                        onClick={() =>
+                          setExpandedWorkout(isExpanded ? null : workout.id)
+                        }
+                      >
+                        <span className="history-summary-main">
+                          {workout.name?.trim() && (
+                            <strong>{workout.name}</strong>
+                          )}
+                          <strong>
+                            {formatWorkoutTimeRange(workout) || 'Training'}
+                          </strong>
+                          <span className="history-meta">
+                            {workout.exercises.length} oefeningen · {setCount} sets
+                          </span>
+                          <span className="history-pr">
+                            {recordCount} {recordCount === 1 ? 'PR' : 'PRs'}
+                          </span>
+                        </span>
+                        <span className="history-chevron">
+                          {isExpanded ? '−' : '+'}
+                        </span>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="history-details">
+                          <button
+                            type="button"
+                            className="secondary-button history-edit-button"
+                            onClick={() => editWorkout(workout)}
+                          >
+                            Training aanpassen
+                          </button>
+                          {workout.exercises.map((exercise) => (
+                            <div className="history-exercise" key={exercise.id}>
+                              <strong>{exercise.name}</strong>
+                              <div className="exercise-pr-badges">
+                                {(
+                                  personalRecordsByWorkout
+                                    .find((entry) => entry.workoutId === workout.id)
+                                    ?.exerciseRecords.find(
+                                      (record) => record.exerciseId === exercise.id,
+                                    )?.labels || []
+                                ).map((label) => (
+                                  <span className="pr-badge" key={label}>
+                                    {label}
+                                  </span>
+                                ))}
+                              </div>
+                              <div className="history-set-list">
+                                {exercise.sets.map((set, index) => (
+                                  <div className="history-set-row" key={index}>
+                                    <span>Set {index + 1}</span>
+                                    <span>{set.reps} herhalingen</span>
+                                    <strong>{set.weight} kg</strong>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </article>
+                  )
+                })
+              )}
+            </div>
+          </section>
+
+          {!activeWorkout ? (
             <>
               <h2>Klaar om te trainen?</h2>
               <p className="subtitle">
@@ -4755,13 +4977,6 @@ function removeSelectedRecordExercise(name: string) {
               </p>
               <button className="start-button" onClick={startWorkout}>
                 + Start training
-              </button>
-              <button
-                type="button"
-                className="secondary-button manage-exercises-button"
-                onClick={() => setManageExerciseLibrary(true)}
-              >
-                Oefeningen beheren
               </button>
               <PresetLibrary
                 presets={presets}
@@ -5249,103 +5464,14 @@ onTouchEnd={() => {
         </section>
       )}
 
-      {view === 'history' && (
-        <section className="history">
-          <h2>Trainingsgeschiedenis</h2>
-          <p className="subtitle">
-            Open een training voor details en om de gegevens aan te passen.
-          </p>
-
-          {workouts.length === 0 ? (
-            <p className="subtitle">Je opgeslagen trainingen verschijnen hier.</p>
-          ) : (
-            workouts.map((workout) => {
-              const setCount = workout.exercises.reduce(
-                (total, exercise) => total + exercise.sets.length,
-                0,
-              )
-              const recordCount =
-  personalRecordsByWorkout.find(
-    (entry) => entry.workoutId === workout.id,
-  )?.records.length || 0
-              const isExpanded = expandedWorkout === workout.id
-
-              return (
-                <article className="history-card compact-history-card" key={workout.id}>
-                  <button
-                    className="history-summary"
-                    aria-expanded={isExpanded}
-                    onClick={() =>
-                      setExpandedWorkout(isExpanded ? null : workout.id)
-                    }
-                  >
-                    <span className="history-summary-main">
-                      {workout.name?.trim() && (
-                        <strong>{workout.name}</strong>
-                      )}
-                      <strong>
-                        {formatWorkoutDate(workout.date)}
-                        {formatWorkoutTimeRange(workout) &&
-                          ` · ${formatWorkoutTimeRange(workout)}`}
-                      </strong>
-                      <span className="history-meta">
-                        {workout.exercises.length} oefeningen · {setCount} sets
-                      </span>
-                      <span className="history-pr">
-                        {recordCount} {recordCount === 1 ? 'PR' : 'PRs'}
-                      </span>
-                    </span>
-                    <span className="history-chevron">
-                      {isExpanded ? '−' : '+'}
-                    </span>
-                  </button>
-
-                  {isExpanded && (
-                    <div className="history-details">
-                      <button
-                        type="button"
-                        className="secondary-button history-edit-button"
-                        onClick={() => editWorkout(workout)}
-                      >
-                        Training aanpassen
-                      </button>
-                      {workout.exercises.map((exercise) => (
-                        <div className="history-exercise" key={exercise.id}>
-                          
-<strong>{exercise.name}</strong>
-
-<div className="exercise-pr-badges">
-  {(
-    personalRecordsByWorkout
-      .find((entry) => entry.workoutId === workout.id)
-      ?.exerciseRecords.find(
-        (record) => record.exerciseId === exercise.id,
-      )?.labels || []
-  ).map((label) => (
-    <span className="pr-badge" key={label}>
-      {label}
-    </span>
-  ))}
-</div>
-
-<div className="history-set-list">
-
-                            {exercise.sets.map((set, index) => (
-                              <div className="history-set-row" key={index}>
-                                <span>Set {index + 1}</span>
-                                <span>{set.reps} herhalingen</span>
-                                <strong>{set.weight} kg</strong>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </article>
-              )
-            })
-          )}
+      {view === 'exercises' && (
+        <section className="workout-panel">
+          <ExerciseLibraryPanel
+            exercises={allExerciseOptions}
+            workouts={workouts}
+            onBack={() => setView('training')}
+            onAddExercise={addCustomExercise}
+          />
         </section>
       )}
 
@@ -5411,14 +5537,14 @@ onTouchEnd={() => {
                 <p>Kies de kleur van StrongJan.</p>
                 <div className="theme-options">
                   {[
-                    { id: 'green', name: 'Groen', color: '#285943' },
-                    { id: 'red', name: 'Rood', color: '#c0392b' },
-                    { id: 'blue', name: 'Blauw', color: '#2471a3' },
-                    { id: 'purple', name: 'Paars', color: '#7950a0' },
-                    { id: 'gray', name: 'Grijs', color: '#626b73' },
-                    { id: 'orange', name: 'Oranje', color: '#d97726' },
+                    { id: 'green', name: 'Groen', color: '#16803c' },
+                    { id: 'red', name: 'Rood', color: '#e53935' },
+                    { id: 'blue', name: 'Blauw', color: '#1677e8' },
+                    { id: 'purple', name: 'Paars', color: '#8138d8' },
+                    { id: 'gray', name: 'Grijs', color: '#475569' },
+                    { id: 'orange', name: 'Oranje', color: '#f07816' },
                     { id: 'black', name: 'Zwart', color: '#252525' },
-                    { id: 'turquoise', name: 'Turquoise', color: '#168a83' },
+                    { id: 'turquoise', name: 'Turquoise', color: '#009688' },
                   ].map((theme) => (
                     <button
                       key={theme.id}
