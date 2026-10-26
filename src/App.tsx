@@ -3114,6 +3114,9 @@ function App() {
   const [openPhotoFolderMenuId, setOpenPhotoFolderMenuId] = useState<
     string | null
   >(null)
+  const [comparePhotoLeftId, setComparePhotoLeftId] = useState('')
+  const [comparePhotoRightId, setComparePhotoRightId] = useState('')
+  const [enlargedPhotoId, setEnlargedPhotoId] = useState<string | null>(null)
   const [photoUrls, setPhotoUrls] = useState<{
     userId: string
     folderId: string
@@ -3349,6 +3352,17 @@ const averageMuscleRecovery = muscleRecovery.length
       active = false
     }
   }, [cloudUser, selectedPhotoFolderId, progressPhotos])
+
+  useEffect(() => {
+    if (!enlargedPhotoId) return
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setEnlargedPhotoId(null)
+    }
+
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [enlargedPhotoId])
 
   useEffect(() => {
     localStorage.setItem(
@@ -3737,6 +3751,9 @@ useEffect(() => {
   const selectedBodyMetricHistory = bodyMeasurements
     .filter((measurement) => measurement.metricId === activeBodyMetric.id)
     .sort((left, right) => left.date.localeCompare(right.date))
+  const selectedFolderPhotos = progressPhotos
+    .filter((photo) => photo.folderId === selectedPhotoFolderId)
+    .sort((left, right) => left.uploadedAt.localeCompare(right.uploadedAt))
 
   function createPhotoFolder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -3885,6 +3902,9 @@ useEffect(() => {
       setProgressPhotos((current) =>
         current.filter((item) => item.id !== photo.id),
       )
+      setComparePhotoLeftId((current) => current === photo.id ? '' : current)
+      setComparePhotoRightId((current) => current === photo.id ? '' : current)
+      setEnlargedPhotoId((current) => current === photo.id ? null : current)
     } catch (error) {
       setPhotoError(
         error instanceof Error
@@ -3932,6 +3952,11 @@ useEffect(() => {
       setSelectedPhotoFolderId((current) =>
         current === folder.id ? null : current,
       )
+      if (selectedPhotoFolderId === folder.id) {
+        setComparePhotoLeftId('')
+        setComparePhotoRightId('')
+        setEnlargedPhotoId(null)
+      }
     } catch (error) {
       setPhotoError(
         error instanceof Error
@@ -6379,6 +6404,8 @@ onTouchEnd={() => {
 
           {selfSection === 'photos' && (
             <section className="photos-page">
+              {!selectedPhotoFolderId && (
+                <>
               <h2>Progressiefoto’s</h2>
               <p className="subtitle">
                 Bewaar foto’s privé in je account en vergelijk je voortgang.
@@ -6462,6 +6489,8 @@ onTouchEnd={() => {
                             aria-pressed={isSelected}
                             onClick={() => {
                               setSelectedPhotoFolderId(folder.id)
+                              setComparePhotoLeftId('')
+                              setComparePhotoRightId('')
                               setOpenPhotoFolderMenuId(null)
                               setPhotoError('')
                             }}
@@ -6554,15 +6583,33 @@ onTouchEnd={() => {
                   Maak een map om je progressiefoto’s te ordenen.
                 </p>
               )}
+              {photoError && (
+                <p className="photo-error" role="alert">{photoError}</p>
+              )}
+                </>
+              )}
 
               {selectedPhotoFolderId && (
                 <section className="photo-folder-content">
                   <div className="photo-folder-heading">
-                    <h3>
-                      {photoFolders.find(
-                        (folder) => folder.id === selectedPhotoFolderId,
-                      )?.name ?? 'Fotomap'}
-                    </h3>
+                    <div className="photo-folder-title">
+                      <button
+                        type="button"
+                        className="photo-back-button"
+                        onClick={() => {
+                          setSelectedPhotoFolderId(null)
+                          setPhotoError('')
+                        }}
+                      >
+                        <span aria-hidden="true">←</span>
+                        Alle mappen
+                      </button>
+                      <h3>
+                        {photoFolders.find(
+                          (folder) => folder.id === selectedPhotoFolderId,
+                        )?.name ?? 'Fotomap'}
+                      </h3>
+                    </div>
                     <div className="photo-folder-actions">
                       <label
                         className={
@@ -6614,6 +6661,95 @@ onTouchEnd={() => {
                     </div>
                   </div>
 
+                  <section
+                    className="photo-comparison"
+                    aria-labelledby="photo-comparison-title"
+                  >
+                    <div className="photo-comparison-heading">
+                      <h3 id="photo-comparison-title">Vergelijk voortgang</h3>
+                      <p>Kies zelf welke foto’s je naast elkaar wilt zien.</p>
+                    </div>
+                    <div className="photo-comparison-grid">
+                      {[
+                        {
+                          side: 'left' as const,
+                          label: 'Links',
+                          photoId: comparePhotoLeftId,
+                          onChange: setComparePhotoLeftId,
+                        },
+                        {
+                          side: 'right' as const,
+                          label: 'Rechts',
+                          photoId: comparePhotoRightId,
+                          onChange: setComparePhotoRightId,
+                        },
+                      ].map(({ side, label, photoId, onChange }) => {
+                        const photo = selectedFolderPhotos.find(
+                          (item) => item.id === photoId,
+                        )
+                        const photoUrl =
+                          photoUrls?.userId === cloudUser?.id &&
+                          photoUrls?.folderId === selectedPhotoFolderId &&
+                          photoId
+                            ? photoUrls.urls[photoId]
+                            : undefined
+
+                        return (
+                          <div
+                            className="photo-comparison-side"
+                            key={side}
+                          >
+                            <label htmlFor={`photo-compare-${side}`}>
+                              {label}
+                            </label>
+                            <select
+                              id={`photo-compare-${side}`}
+                              value={photoId}
+                              onChange={(event) =>
+                                onChange(event.target.value)
+                              }
+                              disabled={selectedFolderPhotos.length === 0}
+                            >
+                              <option value="">Kies een foto</option>
+                              {selectedFolderPhotos.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {new Date(
+                                    item.uploadedAt,
+                                  ).toLocaleDateString('nl-NL')}
+                                  {' · '}
+                                  {item.fileName}
+                                </option>
+                              ))}
+                            </select>
+                            {photo && photoUrl ? (
+                              <button
+                                type="button"
+                                className="photo-comparison-preview"
+                                aria-label={`${label}: foto vergroten`}
+                                onClick={() => setEnlargedPhotoId(photo.id)}
+                              >
+                                <img src={photoUrl} alt={photo.fileName} />
+                                <span>
+                                  {new Date(
+                                    photo.uploadedAt,
+                                  ).toLocaleDateString('nl-NL')}
+                                </span>
+                              </button>
+                            ) : (
+                              <div className="photo-comparison-placeholder">
+                                {photoId
+                                  ? cloudUser
+                                    ? 'Foto laden…'
+                                    : 'Log in om foto’s te bekijken'
+                                  : 'Selecteer een foto'}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </section>
+
                   <p className="photo-upload-hint">
                     JPG, PNG, WebP of AVIF · maximaal 10 MB per foto
                   </p>
@@ -6622,23 +6758,13 @@ onTouchEnd={() => {
                     <p className="photo-error" role="alert">{photoError}</p>
                   )}
 
-                  {progressPhotos.filter(
-                    (photo) => photo.folderId === selectedPhotoFolderId,
-                  ).length === 0 ? (
+                  {selectedFolderPhotos.length === 0 ? (
                     <p className="subtitle photo-empty-state">
                       Nog geen foto’s in deze map.
                     </p>
                   ) : (
                     <div className="progress-photo-grid">
-                      {progressPhotos
-                        .filter(
-                          (photo) => photo.folderId === selectedPhotoFolderId,
-                        )
-                        .sort(
-                          (left, right) =>
-                            left.uploadedAt.localeCompare(right.uploadedAt),
-                        )
-                        .map((photo) => {
+                      {selectedFolderPhotos.map((photo) => {
                           const photoUrl =
                             photoUrls?.userId === cloudUser?.id &&
                             photoUrls?.folderId === selectedPhotoFolderId
@@ -6650,13 +6776,22 @@ onTouchEnd={() => {
                               key={photo.id}
                             >
                               {photoUrl ? (
-                                <img
-                                  src={photoUrl}
-                                  alt={`Progressiefoto toegevoegd op ${new Date(
-                                    photo.uploadedAt,
-                                  ).toLocaleDateString('nl-NL')}`}
-                                  loading="lazy"
-                                />
+                                <button
+                                  type="button"
+                                  className="progress-photo-preview"
+                                  aria-label={`${photo.fileName} vergroten`}
+                                  onClick={() =>
+                                    setEnlargedPhotoId(photo.id)
+                                  }
+                                >
+                                  <img
+                                    src={photoUrl}
+                                    alt={`Progressiefoto toegevoegd op ${new Date(
+                                      photo.uploadedAt,
+                                    ).toLocaleDateString('nl-NL')}`}
+                                    loading="lazy"
+                                  />
+                                </button>
                               ) : (
                                 <div
                                   className="progress-photo-placeholder"
@@ -6687,15 +6822,55 @@ onTouchEnd={() => {
                               </div>
                             </article>
                           )
-                        })}
+                      })}
                     </div>
                   )}
                 </section>
               )}
+              {enlargedPhotoId &&
+                (() => {
+                  const photo = selectedFolderPhotos.find(
+                    (item) => item.id === enlargedPhotoId,
+                  )
+                  const photoUrl =
+                    photoUrls?.userId === cloudUser?.id &&
+                    photoUrls?.folderId === selectedPhotoFolderId
+                      ? photoUrls.urls[enlargedPhotoId]
+                      : undefined
+                  if (!photo || !photoUrl) return null
 
-              {photoError && !selectedPhotoFolderId && (
-                <p className="photo-error" role="alert">{photoError}</p>
-              )}
+                  return createPortal(
+                    <div
+                      className="photo-lightbox"
+                      role="presentation"
+                      onClick={() => setEnlargedPhotoId(null)}
+                    >
+                      <section
+                        className="photo-lightbox-dialog"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Progressiefoto vergroten"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          className="photo-lightbox-close"
+                          aria-label="Foto sluiten"
+                          onClick={() => setEnlargedPhotoId(null)}
+                        >
+                          ×
+                        </button>
+                        <img src={photoUrl} alt={photo.fileName} />
+                        <p>
+                          {new Date(photo.uploadedAt).toLocaleDateString(
+                            'nl-NL',
+                          )}
+                        </p>
+                      </section>
+                    </div>,
+                    document.body,
+                  )
+                })()}
             </section>
           )}
         </section>
